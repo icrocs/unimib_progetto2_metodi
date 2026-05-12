@@ -1,8 +1,19 @@
+import sys
 import time
+
 import numpy as np
 from scipy.fftpack import dctn, dct
-import utils
 
+import matplotlib
+try:
+    import gi
+    gi.require_foreign("cairo")
+    matplotlib.use('GTK4cairo')
+except:
+    pass
+import matplotlib.pyplot as plt
+
+import utils
 
 
 # Run N tests from 1 to dimension
@@ -38,4 +49,22 @@ def dct_benchmark(dimension: int):
         #print(f'Output Custom DCT2:\n{y}\n')
 
     return (scipy_times, custm_times)
+
+
+def main(argc: int, argv: str):
+    b_times = dct_benchmark(int(argv[1]))
+
+    fig, ax = plt.subplots() 
+
+    scipy_line, = ax.plot(b_times[0], label ="scipy dct2", color ="blue", linewidth = 2)
+    custm_line, = ax.plot(b_times[1], label ="custom dct2", color ="red", linewidth = 2)
+
+    fig.legend()
+    ax.grid(True)
+    
+    plt.show()
+
+
+if __name__ == "__main__":
+    main(len(sys.argv), sys.argv)
 
