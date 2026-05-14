@@ -36,8 +36,5 @@ def test_results():
     ret = np.allclose(result_m, y_m, rtol=0.01)
     print(f'{ret}')
 
-def main():
-    test_results()
-
 if __name__ == '__main__':
-    main()
+    test_results()

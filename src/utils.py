@@ -8,27 +8,17 @@ import numpy as np
 def dct(v):
     N = len(v)
     y = np.zeros(N, dtype=float)
-
     for k in range(N):
         sum_cos = 0.
-
-        # TODO Normalizzare? il prof non penso l'abbia messo
-        # Per ora ho messo entrambi i casi ma i risultati sono corretti (da pdf) solo con normalizzazione
         if k == 0:
             Ck = 1.0 / math.sqrt(N)
-            ww = N
         else:
             Ck = math.sqrt(2.0 / N)
-            ww = N/2
 
         for i in range(N):
-            # Calculate the cosine basis function value
             ak = math.cos((math.pi * k * (2*i + 1)) / (2 * N)) * v[i]
-            #ak /= ww
             sum_cos += ak
-
         y[k] = Ck * sum_cos
-
     return y
 
 

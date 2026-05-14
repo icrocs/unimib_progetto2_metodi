@@ -3,14 +3,6 @@ import time
 
 import numpy as np
 from scipy.fftpack import dctn, dct
-
-import matplotlib
-try:
-    import gi
-    gi.require_foreign("cairo")
-    matplotlib.use('GTK4cairo')
-except:
-    pass
 import matplotlib.pyplot as plt
 
 import utils
@@ -20,51 +12,53 @@ import utils
 # Return 2D tuple with
 # - First element millisec times for custom function
 # - Second element millisec times for scipy function
-def dct_benchmark(dimension: int):
+def dct_benchmark(n_values):
     scipy_times = []
     custm_times = []
 
-    for n in range(1, dimension + 1):
-        x = np.random.randint(0, 255, (n, n)) - 128
-        #x = np.ones((n, n))
-        
-        # Take scipy time
-        start_t = time.perf_counter()
-        y = dctn(x)
-        end_t = time.perf_counter()
+    for n in n_values:
 
-        #scipy_times.append(f"{n}:{(end_t - start_t) * 1000}")
+        x = np.random.randint(0, 255, (n, n)).astype(float) - 128
+        
+        start_t = time.perf_counter()
+        _ = dctn(x, type=2, norm='ortho')
+        end_t = time.perf_counter()
         scipy_times.append((end_t - start_t) * 1000)
 
-        #print(f'Output Scipy DCT2:\n{y}\n')
-
-        # Take custom DCT2 time
         start_t = time.perf_counter()
-        y = utils.dct2(x)
+        _ = utils.dct2(x)
         end_t = time.perf_counter()
-
-        #custm_times.append(f"{n}:{(end_t - start_t) * 1000}")
         custm_times.append((end_t - start_t) * 1000)
+        
+        print(f"Test completato per N={n}")
 
-        #print(f'Output Custom DCT2:\n{y}\n')
-
-    return (scipy_times, custm_times)
+    return scipy_times, custm_times
 
 
-def main(argc: int, argv: str):
-    b_times = dct_benchmark(int(argv[1]))
+def main():
 
-    fig, ax = plt.subplots() 
+    n_values = np.arange(10, 201, 10)
 
-    scipy_line, = ax.plot(b_times[0], label ="scipy dct2", color ="blue", linewidth = 2)
-    custm_line, = ax.plot(b_times[1], label ="custom dct2", color ="red", linewidth = 2)
+    print(f"Inizio benchmark su N: {n_values}")
+    scipy_t, custom_t = dct_benchmark(n_values)
 
-    fig.legend()
-    ax.grid(True)
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    ax.plot(n_values, scipy_t, 'o-', label="Scipy DCT2 (Fast)", color="blue", linewidth=2)
+    ax.plot(n_values, custom_t, 's-', label="Custom DCT2 (O(N³))", color="red", linewidth=2)
+
+    ax.set_yscale('log')
     
+
+    ax.set_title("Confronto Prestazioni DCT2: Custom vs Scipy")
+    ax.set_xlabel("Dimensione Matrice (N x N)")
+    ax.set_ylabel("Tempo di esecuzione (ms) - Scala Log")
+    
+    ax.grid(True, which="both", ls="--", alpha=0.5)
+    ax.legend()
+    
+    plt.tight_layout()
     plt.show()
 
-
 if __name__ == "__main__":
-    main(len(sys.argv), sys.argv)
-
+    main()
