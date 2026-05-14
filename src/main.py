@@ -20,6 +20,9 @@ import jpeg
 # Argument parser
 # ---------------------------------------------------------------------------
 
+#TODO: aggiungere argometno per specficare dove salvare l'immagine compressa, 
+# e se mostrare o meno le immagini originali e compresse affiancate (ad esempio con un flag --show). 
+#spostare la gestione degli argomenti in un file a parte tipo parser.py, e importare la funzione build_parser() da lì.
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="main.py",
