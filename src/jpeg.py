@@ -11,20 +11,21 @@ def block_splitter(A: np.ndarray, F: int) -> tuple[int, int, list[np.ndarray]]:
     """
     h, w = A.shape
     n_y, n_x = h // F, w // F
-    A = A[: n_y * F, : n_x * F].astype(float)
+    A = A[: n_y * F, : n_x * F].astype(float) #crop the input array A to ensure its dimensions are multiples of F, and convert to float for DCT processing. This is necessary because the DCT operates on blocks of size F×F, and any leftover pixels that don't fit into a complete block would be discarded. By cropping the image to the nearest multiple of F, we ensure that all pixels are included in the block processing without any issues.
     return n_y, n_x, [
-        A[by * F : (by + 1) * F, bx * F : (bx + 1) * F]
-        for by in range(n_y)
-        for bx in range(n_x)
+        A[by * F : (by + 1) * F, bx * F : (bx + 1) * F] #extract the F×F block from the cropped array A for each block position (by, bx) and store it in a list. 
+        for by in range(n_y)                            #The blocks are ordered row-wise, 
+        for bx in range(n_x)                            #meaning that we first iterate over the blocks in the y-direction (rows)
+                                                        # and then over the blocks in the x-direction (columns) within each row.
     ]
 
 
 def compress_block(block: np.ndarray, d: int) -> np.ndarray:
-    c = dct2(block)
-    F = block.shape[0]
-    k, l = np.meshgrid(np.arange(F), np.arange(F), indexing="ij")
-    c[k + l >= d] = 0.0
-    return np.clip(np.round(dct2(c)), 0, 255).astype(np.uint8)
+    c = dct2(block) 
+    F = block.shape[0] 
+    k, l = np.meshgrid(np.arange(F), np.arange(F), indexing="ij") 
+    c[k + l >= d] = 0.0 #zero coefficients where k+l >= d
+    return np.clip(np.round(dct2(c)), 0, 255).astype(np.uint8) #inverse DCT2 (DCT2 its is own inverse, what a magic!) and clip to [0, 255] for valid pixel values 
 
 
 def compress_image(img: Image.Image, F: int, d: int) -> Image.Image:
@@ -39,11 +40,11 @@ def compress_image(img: Image.Image, F: int, d: int) -> Image.Image:
     Returns:
         Compressed PIL Image (grayscale), cropped to the nearest multiple of F.
     """
-    A = np.array(img.convert("L"))
+    A = np.array(img.convert("L")) #covert to grayscale
     n_y, n_x, blocks = block_splitter(A, F)
     compressed = [compress_block(b, d) for b in blocks]
-    rows = [np.hstack(compressed[by * n_x : (by + 1) * n_x]) for by in range(n_y)]
-    return Image.fromarray(np.vstack(rows))
+    rows = [np.hstack(compressed[by * n_x : (by + 1) * n_x]) for by in range(n_y)] #reassemble the compressed blocks into rows, then stack the rows vertically to form the final compressed image array
+    return Image.fromarray(np.vstack(rows)) #convert the final compressed image array back to a PIL Image and return it
 
 
 def validate_params(img: Image.Image, F: int, d: int) -> str | None:
