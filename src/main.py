@@ -1,124 +1,88 @@
-import sys
-import benchmark
-import matplotlib
-try:
-    import gi
-    gi.require_foreign("cairo")
-    matplotlib.use('GTK4cairo')
-except:
-    pass
-import matplotlib.pyplot as plt
+"""
+main.py — CLI entry-point for the DCT image compressor.
 
-import numpy as np
-from scipy.fftpack import dctn, idctn
+Usage:
+    python main.py image.bmp 8 5
+    python main.py image.bmp 8 5 --output compressed.bmp
+    python main.py image.bmp 8 5 --show
+    python main.py image.bmp 8 5 --show --output out.bmp
+"""
+import sys
+import argparse
+from pathlib import Path
+
 from PIL import Image
 
-
-# Subdivide matrix A to FxF blocks
-# remaining values are dropped
-# Return array of 2D blocks (3D array)
-# TODO gestire caso F > len(A)?
-# TODO! gestire caso matrice non quadrata
-def block_splitter(A, F):
-    N_x = A.shape[0]
-    N_y = A.shape[1]
-    split_x = int(N_x / F)
-    split_y = int(N_y / F)
-    last_x = -(N_x % F) or None
-    last_y = -(N_y % F) or None
-    #print(f'Cutting last {last_x}, {last_y} and subdividing in {split_x}x{split_y} pieces')
-    c_A = A[0:last_x, 0:last_y]
-    return (split_y, split_x, [M for sub_A in np.split(c_A, split_x, axis = 0) for M in np.split(sub_A , split_y, axis = 1)])
+import jpeg
 
 
-def matrix_apply(A, func):
-    for x in range(A.shape[0]):
-        for y in range(A.shape[1]):
-            func(A, x, y, A[x][y])
+# ---------------------------------------------------------------------------
+# Argument parser
+# ---------------------------------------------------------------------------
 
-def cut_freq(A, x, y, v):
-    if x + y >= d:
-        A[x][y] = 0.
-
-def reverse_val(A, x, y, v):
-    val = round(v)
-    if val > 255: val = 255
-    if val < 0: val = 0
-    A[x][y] = val
-
-def main(argc: int, argv: str):
-    global A
-    global F
-    global d
-
-    if argc < 3:
-        print(f'Usage: {argv[0]} <F> <d>')
-        return -1
-
-    im = Image.open(argv[1])
-    A = np.array(im)
-    F = int(argv[2])
-    d = int(argv[3])
-
-    print(f'Loaded matrix of size {A.shape}')
-    print(f'matrix width: {len(A[0])}')
-    print(f'matrix height: {len(A[:, 0])}')
-    print(A)
-
-    # Consistency checks
-    if d > 2 * F - 2:
-        print(f'Error: d must be <= 2F - 2')
-        return -1
-    
-    # Consistency checks
-    if F > min(A.shape):
-        print(f'Error: F must not exceed matrix size')
-        return -1
-
-    split_x, split_y, splitted_image = block_splitter(A, F)
-    print(f'Subdivided in {split_x}x{split_y} pieces')
-    #for i in range(5):
-    #    print(splitted_image[i])
-    compressed_chunks = []
-    for chunk in splitted_image:
-        # Use numpy 'ortho' for normalization
-        # If not ustilized it explodes imediatelly to high values
-
-        chunk_dct2 = dctn(chunk, type=2, norm='ortho')
-        matrix_apply(chunk_dct2, cut_freq)
-
-        chunk_idct2 = idctn(chunk_dct2, type=2, norm='ortho')
-        matrix_apply(chunk_idct2, reverse_val)
-        
-        compressed_chunks.append(np.array(chunk_idct2, dtype=int))
-
-    #for i in range(len(compressed_chunks)):
-    #for i in range(5):
-    #    if (i % split_x) == 0:
-    #        print('\nSplitting x axis\n')
-    #    print(f'{compressed_chunks[i]}')
-
-    h_stacked = []
-    for chunk_y in range(split_y):
-        base_chunk = chunk_y * split_x
-        stacked_h = np.hstack(compressed_chunks[base_chunk:base_chunk + split_x])
-        h_stacked.append(stacked_h)
-
-    result = np.vstack(h_stacked)
-
-    print(f'Result:\n{result}')
-    print(f'\nOriginal:\n{A}')
-
-    img = Image.fromarray(result.astype(np.uint8))
-    img.show()
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="main.py",
+        description="JPEG-like DCT2 image compressor.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "examples:\n"
+            "  python main.py photo.bmp 8 5\n"
+            "  python main.py photo.bmp 16 10 --output result.bmp --show\n"
+            "  python main.py photo.bmp 8 0   # keep NO frequencies (blank image)\n"
+        ),
+    )
+    p.add_argument("image",  type=Path, help="Input image file (.bmp / .png / .jpg)")
+    p.add_argument("F",      type=int,  help="Block size in pixels (e.g. 8)")
+    p.add_argument("d",      type=int,  help="Frequency cutoff: zero coefficients where k+l >= d  (0 ... 2F-2)")
+    p.add_argument("-o", "--output", type=Path, default=None,
+                   help="Save compressed image to this path (optional)")
+    p.add_argument("-s", "--show",   action="store_true",
+                   help="Display original and compressed images side-by-side")
+    return p
 
 
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
 
-    #print(f'\nStacked: {np.hstack((compressed_chunks[0], compressed_chunks[1]))}')
+    if not args.image.exists():
+        parser.error(f"File not found: {args.image}")
+    try:
+        img = Image.open(args.image).convert("L")
+    except Exception as exc:
+        parser.error(f"Cannot open image: {exc}")
 
-    return 1
+    err = jpeg.validate_params(img, args.F, args.d)
+    if err:
+        parser.error(err)
+
+    kept  = jpeg.kept_coefficients(args.F, args.d)
+    total = args.F ** 2
+    print(f"Image   : {args.image.name}  ({img.width} x {img.height} px)")
+    print(f"F = {args.F},  d = {args.d}")
+    print(f"Kept    : {kept} / {total} coefficients per block  ({100*kept/total:.0f} %)")
+
+    compressed = jpeg.compress_image(img, args.F, args.d)
+    print(f"Output  : {compressed.width} x {compressed.height} px  (cropped to multiple of F)")
+
+    if args.output:
+        compressed.save(args.output)
+        print(f"Saved   : {args.output}")
+
+    if args.show:
+        orig_crop = img.crop((0, 0, compressed.width, compressed.height))
+        side = Image.new("L", (compressed.width * 2, compressed.height))
+        side.paste(orig_crop,  (0, 0))
+        side.paste(compressed, (compressed.width, 0))
+        side.show()
+
+    return 0
 
 
 if __name__ == "__main__":
-    main(len(sys.argv), sys.argv)
+    main()
