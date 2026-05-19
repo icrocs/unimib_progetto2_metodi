@@ -11,9 +11,14 @@ import sys
 import argparse
 from pathlib import Path
 
+from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import Qt
+
 from PIL import Image
 
 import jpeg
+import gui
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +48,15 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Display original and compressed images side-by-side")
     return p
 
+# ---------------------------------------------------------------------------
+# GUI
+# ---------------------------------------------------------------------------
+
+def create_app():
+    app = QApplication(argvs)
+    w = BitmapEditorApp()
+    w.show()              # show before heavy work
+    app.exec()
 
 # ---------------------------------------------------------------------------
 # Main
@@ -76,12 +90,8 @@ def main() -> int:
         compressed.save(args.output)
         print(f"Saved   : {args.output}")
 
-    if args.show:
-        orig_crop = img.crop((0, 0, compressed.width, compressed.height))
-        side = Image.new("L", (compressed.width * 2, compressed.height))
-        side.paste(orig_crop,  (0, 0))
-        side.paste(compressed, (compressed.width, 0))
-        side.show()
+
+    gui.run_app(str(args.image), args.F, args.d)
 
     return 0
 
