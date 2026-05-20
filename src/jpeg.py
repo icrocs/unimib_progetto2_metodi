@@ -23,7 +23,9 @@ def block_splitter(A: np.ndarray, F: int) -> tuple[int, int, list[np.ndarray]]:
 def compress_block(block: np.ndarray, d: int) -> np.ndarray:
     c = dct2(block) 
     F = block.shape[0] 
-    k, l = np.meshgrid(np.arange(F), np.arange(F), indexing="ij") 
+    k, l = np.meshgrid(np.arange(F), np.arange(F), indexing="ij") #some magic of meshgrid to create two 2D arrays 
+                                                                  #k and l that represent the row and column indices of the DCT coefficients in the block. 
+                                                                  # The indexing="ij" argument ensures that the first dimension corresponds to rows (k) and the second dimension corresponds to columns (l).
     c[k + l >= d] = 0.0 #zero coefficients where k+l >= d
     return np.clip(np.round(dct2(c)), 0, 255).astype(np.uint8) #inverse DCT2 (DCT2 its is own inverse, what a magic!) and clip to [0, 255] for valid pixel values 
 
