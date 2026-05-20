@@ -1,30 +1,98 @@
 import sys
+import os
 
 from io import BytesIO
-from typing import Optional, Tuple
+from typing import Optional
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
-    QFileDialog, QFormLayout, QLineEdit, QPushButton
+    QFileDialog, QLineEdit, QPushButton, QStatusBar, QFrame, QSizePolicy
 )
-from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QPixmap, QFont, QPainter, QColor, QPen
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
 
-from PIL import Image, ImageQt
+from PIL import Image
 import jpeg
 
 
-# Replace or import your black-box processing function here.
-# Signature: (path: str, field1: int, field2: int) -> bytes (PNG bytes)
+# ── Dark palette ─────────────────────────────────────────────────────────────
+DARK_STYLE = """
+QWidget {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    font-family: 'Segoe UI', 'Inter', sans-serif;
+    font-size: 13px;
+}
+QLineEdit {
+    background-color: #313244;
+    border: 1px solid #45475a;
+    border-radius: 5px;
+    padding: 4px 8px;
+    color: #cdd6f4;
+}
+QLineEdit:focus { border: 1px solid #89b4fa; }
+
+QPushButton {
+    background-color: #313244;
+    border: 1px solid #45475a;
+    border-radius: 5px;
+    padding: 5px 12px;
+    color: #cdd6f4;
+}
+QPushButton:hover  { background-color: #45475a; border: 1px solid #89b4fa; }
+QPushButton:pressed { background-color: #89b4fa; color: #1e1e2e; }
+
+QPushButton#process_btn {
+    background-color: #89b4fa;
+    color: #1e1e2e;
+    font-weight: bold;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 18px;
+}
+QPushButton#process_btn:hover   { background-color: #b4befe; }
+QPushButton#process_btn:pressed { background-color: #7287fd; }
+QPushButton#process_btn:disabled { background-color: #45475a; color: #6c7086; }
+
+QFrame#header_frame {
+    background-color: #181825;
+    border-bottom: 1px solid #313244;
+}
+QFrame#controls_frame {
+    background-color: #181825;
+    border-bottom: 1px solid #313244;
+}
+QLabel#img_label {
+    background-color: #11111b;
+    border: 1px solid #313244;
+    border-radius: 8px;
+    color: #45475a;
+    font-size: 14px;
+}
+QLabel#panel_cap {
+    color: #585b70;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+    padding: 1px 4px;
+}
+QStatusBar {
+    background-color: #181825;
+    color: #6c7086;
+    font-size: 11px;
+    border-top: 1px solid #313244;
+}
+"""
+
+
+# ── Processing logic (unchanged) ─────────────────────────────────────────────
 def process_bitmap(path: str, F: int, d: int):
     try:
         img = Image.open(path).convert("L")
     except Exception as exc:
-        parser.error(f"Cannot open image: {exc}")
-
+        raise RuntimeError(f"Failed to open Image: {exc}")  #messo raise runtime perche parser.error non c'era come import
     compressed = jpeg.compress_image(img, F, d)
     buf = BytesIO()
     compressed.save(buf, format="BMP")
-
     return buf.getvalue()
 
 
@@ -46,71 +114,179 @@ class ProcessorThread(QThread):
             self.error.emit(str(e))
 
 
+# ── Main window ──────────────────────────────────────────────────────────────
 class BitmapEditorApp(QWidget):
     def __init__(self, img_path, F, d):
         super().__init__()
-        self.setWindowTitle("Bitmap Editor (PyQt6)")
-        self.orig_pix: Optional[QPixmap] = None
+        self.setWindowTitle("Bitmap Editor — Metodi del Calcolo Scientifico")
+        self.setMinimumSize(800, 580)
+        self.orig_pix:   Optional[QPixmap] = None
         self.edited_pix: Optional[QPixmap] = None
-        self.worker: Optional[ProcessorThread] = None
-        
+        self.worker:     Optional[ProcessorThread] = None
         self.img_path = img_path
         self.F = F
         self.d = d
-        
         self._setup_ui()
 
+    # ── UI construction ───────────────────────────────────────────────────────
     def _setup_ui(self):
-        main_layout = QVBoxLayout(self)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        form_layout = QFormLayout()
-        path_row = QHBoxLayout()
-        self.path_edit = QLineEdit(self.img_path)
-        browse_btn = QPushButton("Browse")
-        browse_btn.clicked.connect(self.browse_file)
-        path_row.addWidget(self.path_edit)
-        path_row.addWidget(browse_btn)
-        self.path_edit.returnPressed.connect(self._on_path_entered)
-
-
-        # Two integer text fields (plain QLineEdit). Defaults "0".
-        self.field1_edit = QLineEdit(f"{self.F}")
-        self.field2_edit = QLineEdit(f"{self.d}")
-        self.field1_edit.setPlaceholderText("integer (e.g. 0)")
-        self.field2_edit.setPlaceholderText("integer (e.g. 0)")
-
-        form_layout.addRow("File:", path_row)
-        form_layout.addRow("F:", self.field1_edit)
-        form_layout.addRow("d:", self.field2_edit)
-
-        # Process button
-        self.process_btn = QPushButton("Process")
-        self.process_btn.clicked.connect(self.on_process_clicked)
-
-        main_layout.addLayout(form_layout)
-        main_layout.addWidget(self.process_btn)
-
-        imgs_layout = QHBoxLayout()
-        self.orig_label = QLabel("Original\nNo image")
-        self.orig_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.orig_label.setMinimumSize(300, 300)
-        self.orig_label.setStyleSheet("border: 1px solid gray;")
-
-        self.edited_label = QLabel("Edited\nNo image")
-        self.edited_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.edited_label.setMinimumSize(300, 300)
-        self.edited_label.setStyleSheet("border: 1px solid gray;")
-
-        imgs_layout.addWidget(self.orig_label)
-        imgs_layout.addWidget(self.edited_label)
-        main_layout.addLayout(imgs_layout)
+        root.addWidget(self._build_header())
+        root.addWidget(self._build_controls())
+        root.addLayout(self._build_images(), stretch=1)   
+        root.addWidget(self._build_statusbar())
 
         if self.img_path:
             self.path_edit.setText(self.img_path)
             self.load_original(self.img_path)
 
+    # ── Header ────────────────────────────────────────────────────────────────
+    def _build_header(self) -> QFrame:
+        frame = QFrame()
+        frame.setObjectName("header_frame")
+        frame.setFixedHeight(68)
+
+        row = QHBoxLayout(frame)
+        row.setContentsMargins(16, 8, 16, 8)
+        row.setSpacing(14)
+
+        # Logo (file opzionale da salvare come bicocca_logo.png in src cosi da avere logo bicocca nel titolo, altrimenti viene messa un emoji tipo cappello laurea)
+        self.logo_lbl = QLabel()
+        self.logo_lbl.setFixedSize(48, 48)
+        self.logo_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bicocca_logo.png")
+        if os.path.exists(logo_path):
+            pix = QPixmap(logo_path).scaled(48, 48,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation)
+            self.logo_lbl.setPixmap(pix)
+        else:
+            # Placeholder 
+            self.logo_lbl.setText("🎓")
+            self.logo_lbl.setStyleSheet("font-size: 32px;")
+        row.addWidget(self.logo_lbl)
+
+        # Testo titolo + autori
+        text_col = QVBoxLayout()
+        text_col.setSpacing(2)
+
+        title_lbl = QLabel("Progetto Metodi del Calcolo Scientifico")
+        title_lbl.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
+        title_lbl.setStyleSheet("color: #cdd6f4;")
+
+        authors_lbl = QLabel("Jacopo Borgato  ·  Nicolas Chines")
+        authors_lbl.setStyleSheet("color: #6c7086; font-size: 11px;")
+
+        text_col.addWidget(title_lbl)
+        text_col.addWidget(authors_lbl)
+        row.addLayout(text_col)
+        row.addStretch()
+
+        return frame
+
+    # ── Controls (compact single row) ────────────────────────────────────────
+    def _build_controls(self) -> QFrame:
+        frame = QFrame()
+        frame.setObjectName("controls_frame")
+        frame.setFixedHeight(46)
+
+        row = QHBoxLayout(frame)
+        row.setContentsMargins(14, 6, 14, 6)
+        row.setSpacing(8)
+
+        # File path
+        file_lbl = QLabel("File:")
+        file_lbl.setStyleSheet("color: #6c7086;")
+        self.path_edit = QLineEdit(self.img_path)
+        self.path_edit.setPlaceholderText("Seleziona un file .bmp…")
+        self.path_edit.setMinimumWidth(220)
+        self.path_edit.returnPressed.connect(self._on_path_entered)
+
+        browse_btn = QPushButton("Browse")
+        browse_btn.setFixedWidth(72)
+        browse_btn.clicked.connect(self.browse_file)
+
+        sep = self._vsep()
+
+        # F and d fields (narrow)
+        f_lbl = QLabel("F:")
+        f_lbl.setStyleSheet("color: #6c7086;")
+        self.field1_edit = QLineEdit(f"{self.F}")
+        self.field1_edit.setFixedWidth(60)
+        self.field1_edit.setPlaceholderText("0")
+
+        d_lbl = QLabel("d:")
+        d_lbl.setStyleSheet("color: #6c7086;")
+        self.field2_edit = QLineEdit(f"{self.d}")
+        self.field2_edit.setFixedWidth(60)
+        self.field2_edit.setPlaceholderText("0")
+
+        sep2 = self._vsep()
+
+        self.process_btn = QPushButton("⚙  Process")
+        self.process_btn.setObjectName("process_btn")
+        self.process_btn.setFixedWidth(120)
+        self.process_btn.clicked.connect(self.on_process_clicked)
+
+        for w in (file_lbl, self.path_edit, browse_btn, sep,
+                  f_lbl, self.field1_edit, d_lbl, self.field2_edit,
+                  sep2, self.process_btn):
+            row.addWidget(w)
+
+        return frame
+
+    def _vsep(self) -> QFrame:
+        s = QFrame()
+        s.setFrameShape(QFrame.Shape.VLine)
+        s.setStyleSheet("color: #313244;")
+        s.setFixedHeight(24)
+        return s
+
+    # ── Image panels ─────────────────────────────────────────────────────────
+    def _build_images(self) -> QHBoxLayout:
+        layout = QHBoxLayout()
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(12)
+
+        self.orig_label   = self._make_img_label("Originale")
+        self.edited_label = self._make_img_label("Processata")
+
+        layout.addWidget(self._wrap_panel("ORIGINALE",  self.orig_label))
+        layout.addWidget(self._wrap_panel("PROCESSATA", self.edited_label))
+        return layout
+
+    def _make_img_label(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setObjectName("img_label")
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        lbl.setMinimumSize(200, 200)
+        return lbl
+
+    def _wrap_panel(self, title: str, img_label: QLabel) -> QWidget:
+        w = QWidget()
+        v = QVBoxLayout(w)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(4)
+        cap = QLabel(title)
+        cap.setObjectName("panel_cap")
+        v.addWidget(cap)
+        v.addWidget(img_label, stretch=1)
+        return w
+
+    # ── Status bar ────────────────────────────────────────────────────────────
+    def _build_statusbar(self) -> QStatusBar:
+        self.status = QStatusBar()
+        self.status.showMessage("Pronto")
+        return self.status
+
+    # ── Logic  ─────────────────────────────────────────────────────
     def browse_file(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Open Bitmap", "", "Bitmap Files (*.bmp);;All Files (*)")
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Apri Bitmap", "", "Bitmap Files (*.bmp);;All Files (*)")
         if path:
             self.path_edit.setText(path)
             self.load_original(path)
@@ -132,16 +308,18 @@ class BitmapEditorApp(QWidget):
     def load_original(self, path: str):
         pix = QPixmap(path)
         if pix.isNull():
-            self.orig_label.setText("Failed to load image")
+            self.orig_label.setText("Impossibile caricare l'immagine")
             self.orig_pix = None
+            self.status.showMessage(f"⚠  Errore: {path}")
         else:
             self.orig_pix = pix
             self._update_label_pixmap(self.orig_label, self.orig_pix)
+            self.status.showMessage(f"✓  Caricata: {path}")
 
     def on_process_clicked(self):
         path = self.path_edit.text().strip()
         if not path:
-            self.edited_label.setText("No input file")
+            self.edited_label.setText("Nessun file selezionato")
             return
         self.start_processing(path)
 
@@ -149,10 +327,11 @@ class BitmapEditorApp(QWidget):
         if self.worker and self.worker.isRunning():
             self.worker.terminate()
             self.worker.wait()
-
         f1 = self._read_int_field(self.field1_edit, 0)
         f2 = self._read_int_field(self.field2_edit, 0)
-        self.edited_label.setText("Processing...")
+        self.edited_label.setText("Elaborazione in corso…")
+        self.process_btn.setEnabled(False)
+        self.status.showMessage("⏳  Elaborazione in corso…")
         self.worker = ProcessorThread(path, f1, f2)
         self.worker.finished_bytes.connect(self.on_processed)
         self.worker.error.connect(self.on_error)
@@ -161,16 +340,21 @@ class BitmapEditorApp(QWidget):
     def on_processed(self, out_bytes: bytes):
         pix = QPixmap()
         pix.loadFromData(out_bytes, format="BMP")
+        self.process_btn.setEnabled(True)
         if pix.isNull():
-            self.edited_label.setText("Failed to create edited pixmap")
+            self.edited_label.setText("Errore nella creazione del pixmap")
             self.edited_pix = None
+            self.status.showMessage("⚠  Elaborazione fallita")
         else:
             self.edited_pix = pix
             self._update_label_pixmap(self.edited_label, self.edited_pix)
+            self.status.showMessage("✓  Elaborazione completata")
 
     def on_error(self, msg: str):
-        self.edited_label.setText(f"Processing error:\n{msg}")
+        self.edited_label.setText(f"Errore:\n{msg}")
         self.edited_pix = None
+        self.process_btn.setEnabled(True)
+        self.status.showMessage(f"⚠  {msg}")
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -182,13 +366,19 @@ class BitmapEditorApp(QWidget):
     def _update_label_pixmap(self, label: QLabel, pix: QPixmap):
         if pix is None or pix.isNull():
             return
-        target = label.size()
-        scaled = pix.scaled(target, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        scaled = pix.scaled(label.size(),
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.FastTransformation) #modificato in fasttransform talmodo che non fa l effetto blurrato nello scalare l'immagine
         label.setPixmap(scaled)
 
 
 def run_app(img_path: str, F: int, d: int):
     app = QApplication(sys.argv)
+    app.setStyleSheet(DARK_STYLE)
     w = BitmapEditorApp(img_path, F, d)
     w.show()
     app.exec()
+
+
+if __name__ == "__main__":
+    run_app(img_path="", F=0, d=0)
