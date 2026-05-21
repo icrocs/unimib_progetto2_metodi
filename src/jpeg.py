@@ -1,3 +1,6 @@
+from concurrent.futures import ProcessPoolExecutor
+import os
+
 import numpy as np
 from utils import dct, dct2, idct2
 from PIL import Image
@@ -30,23 +33,20 @@ def compress_block(block: np.ndarray, d: int) -> np.ndarray:
 
 
 def compress_image(img: Image.Image, F: int, d: int) -> Image.Image:
-    """Compress a grayscale PIL image with DCT2 block compression.
-
-    Args:
-        img: PIL Image (converted to grayscale internally).
-        F:   Block size in pixels.
-        d:   Frequency cutoff — coefficients c[k,l] with k+l ≥ d are zeroed.
-             Range: 0 (keep nothing) … 2F-2 (drop only the very last coefficient).
-
-    Returns:
-        Compressed PIL Image (grayscale), cropped to the nearest multiple of F.
-    """
-    A = np.array(img.convert("L")) #covert to grayscale
+    """Compress a grayscale PIL image with DCT2 block compression using multiple CPU cores."""
+    A = np.array(img.convert("L")) # convert to grayscale
     n_y, n_x, blocks = block_splitter(A, F)
-    compressed = [compress_block(b, d) for b in blocks]
-    rows = [np.hstack(compressed[by * n_x : (by + 1) * n_x]) for by in range(n_y)] #reassemble the compressed blocks into rows, then stack the rows vertically to form the final compressed image array
-    return Image.fromarray(np.vstack(rows)) #convert the final compressed image array back to a PIL Image and return it
-
+    core = os.cpu_count() or 1
+    max_cores = max(1, core - 2) #lasciamo 2 core liberi per il sistema e altre operazioni( se meno di cpu.count() < 4 core allora ne usa 1)
+    with ProcessPoolExecutor(max_workers=max_cores) as executor:
+        compressed_iter = executor.map(
+            compress_block, 
+            blocks, 
+            [d] * len(blocks)
+        )
+        compressed = list(compressed_iter)
+    rows = [np.hstack(compressed[by * n_x : (by + 1) * n_x]) for by in range(n_y)]
+    return Image.fromarray(np.vstack(rows))
 
 def validate_params(img: Image.Image, F: int, d: int) -> str | None:
     """Return an error string when parameters are invalid, else None."""
