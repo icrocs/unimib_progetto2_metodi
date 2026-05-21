@@ -321,18 +321,49 @@ class BitmapEditorApp(QWidget):
         if not path:
             self.edited_label.setText("Nessun file selezionato")
             return
+        F = self._read_int_field(self.field1_edit, 0)
+        d = self._read_int_field(self.field2_edit, 0)
+
+        # ── Validazione parametri ───────────────────────────────────────────────
+        if F <= 0:
+            msg = "Errore: F deve essere maggiore di 0"
+            self.edited_label.setText(msg)
+            self.status.showMessage(f"⚠  {msg}")
+            return
+
+        max_d = 2 * F - 2
+        if d < 0 or d > max_d:
+            msg = f"Errore: d deve essere compreso tra 0 e {max_d} (2F - 2)"
+            self.edited_label.setText(msg)
+            self.status.showMessage(f"⚠  {msg}")
+            return
+
+        #F non deve essere più grande delle dimensioni dell'immagine
+        if self.orig_pix and not self.orig_pix.isNull():
+            img_w = self.orig_pix.width()
+            img_h = self.orig_pix.height()
+            min_dim = min(img_w, img_h)
+            
+            if F > min_dim:
+                msg = f"Errore: F ({F}) è più grande dell'immagine ({img_w}x{img_h})"
+                self.edited_label.setText(msg)
+                self.status.showMessage(f"⚠  {msg}")
+                return
+
         self.start_processing(path)
 
     def start_processing(self, path: str):
         if self.worker and self.worker.isRunning():
             self.worker.terminate()
             self.worker.wait()
-        f1 = self._read_int_field(self.field1_edit, 0)
-        f2 = self._read_int_field(self.field2_edit, 0)
+        F = self._read_int_field(self.field1_edit, 0)
+        d = self._read_int_field(self.field2_edit, 0)
+
+        
         self.edited_label.setText("Elaborazione in corso…")
         self.process_btn.setEnabled(False)
         self.status.showMessage("⏳  Elaborazione in corso…")
-        self.worker = ProcessorThread(path, f1, f2)
+        self.worker = ProcessorThread(path, F, d)
         self.worker.finished_bytes.connect(self.on_processed)
         self.worker.error.connect(self.on_error)
         self.worker.start()
