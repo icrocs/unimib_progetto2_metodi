@@ -7,81 +7,12 @@ from PyQt6.QtWidgets import (
     QApplication, QSplashScreen, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QFileDialog, QLineEdit, QPushButton, QStatusBar, QFrame, QSizePolicy
 )
-from PyQt6.QtGui import QPixmap, QFont, QPainter, QColor, QPen
+from PyQt6.QtGui import QKeySequence, QPixmap, QFont, QPainter, QColor, QPen, QShortcut
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
 
 from PIL import Image
 import jpeg
-
-
-# ── Dark palette ─────────────────────────────────────────────────────────────
-DARK_STYLE = """
-QWidget {
-    background-color: #1e1e2e;
-    color: #cdd6f4;
-    font-family: 'Segoe UI', 'Inter', sans-serif;
-    font-size: 13px;
-}
-QLineEdit {
-    background-color: #313244;
-    border: 1px solid #45475a;
-    border-radius: 5px;
-    padding: 4px 8px;
-    color: #cdd6f4;
-}
-QLineEdit:focus { border: 1px solid #89b4fa; }
-
-QPushButton {
-    background-color: #313244;
-    border: 1px solid #45475a;
-    border-radius: 5px;
-    padding: 5px 12px;
-    color: #cdd6f4;
-}
-QPushButton:hover  { background-color: #45475a; border: 1px solid #89b4fa; }
-QPushButton:pressed { background-color: #89b4fa; color: #1e1e2e; }
-
-QPushButton#process_btn {
-    background-color: #89b4fa;
-    color: #1e1e2e;
-    font-weight: bold;
-    border: none;
-    border-radius: 6px;
-    padding: 5px 18px;
-}
-QPushButton#process_btn:hover   { background-color: #b4befe; }
-QPushButton#process_btn:pressed { background-color: #7287fd; }
-QPushButton#process_btn:disabled { background-color: #45475a; color: #6c7086; }
-
-QFrame#header_frame {
-    background-color: #181825;
-    border-bottom: 1px solid #313244;
-}
-QFrame#controls_frame {
-    background-color: #181825;
-    border-bottom: 1px solid #313244;
-}
-QLabel#img_label {
-    background-color: #11111b;
-    border: 1px solid #313244;
-    border-radius: 8px;
-    color: #45475a;
-    font-size: 14px;
-}
-QLabel#panel_cap {
-    color: #585b70;
-    font-size: 10px;
-    font-weight: bold;
-    letter-spacing: 1.5px;
-    padding: 1px 4px;
-}
-QStatusBar {
-    background-color: #181825;
-    color: #6c7086;
-    font-size: 11px;
-    border-top: 1px solid #313244;
-}
-"""
+from styles import DARK_STYLE, SPLASH_MESSAGES
 
 
 # ── Processing logic (unchanged) ─────────────────────────────────────────────
@@ -127,6 +58,11 @@ class BitmapEditorApp(QWidget):
         self.F = F
         self.d = d
         self._setup_ui()
+        
+        shortcut_return = QShortcut(QKeySequence(Qt.Key.Key_Return), self)
+        shortcut_enter  = QShortcut(QKeySequence(Qt.Key.Key_Enter), self)
+        shortcut_return.activated.connect(self.on_process_clicked)
+        shortcut_enter.activated.connect(self.on_process_clicked)
 
     # ── UI construction ───────────────────────────────────────────────────────
     def _setup_ui(self):
@@ -380,17 +316,6 @@ class BitmapEditorApp(QWidget):
                             Qt.AspectRatioMode.KeepAspectRatio,
                             Qt.TransformationMode.FastTransformation) #modificato in fasttransform talmodo che non fa l effetto blurrato nello scalare l'immagine
         label.setPixmap(scaled)
-
-
-SPLASH_MESSAGES = [
-    ("Inizializzazione del sistema...",      "#2753e0", 800),
-    ("Facendo i complimenti al professore per un captatio benevolentiae...",            "#1c67de", 2000),
-    ("Calcolando il senso della vita, l'universo e tutto quanto...", "#38d729", 2000),
-    ("Verificando se P = NP.... in caso di crash allora P ≠ NP.", "#89b4fa", 2000),
-    ("Dimostrando l'Ipotesi di Riemann...\n Ooops, i margini dello splash screen sono troppo stretti per scriverla.", "#f4df00", 2000),
-    ("Avvio interfaccia grafica...",         "#ff497c", 600),
-]
- 
  
 def build_fallback_pixmap() -> QPixmap:
     pix = QPixmap(700, 440)
