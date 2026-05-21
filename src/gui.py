@@ -4,7 +4,7 @@ import os
 from io import BytesIO
 from typing import Optional
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
+    QApplication, QSplashScreen, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QFileDialog, QLineEdit, QPushButton, QStatusBar, QFrame, QSizePolicy
 )
 from PyQt6.QtGui import QPixmap, QFont, QPainter, QColor, QPen
@@ -328,7 +328,6 @@ class BitmapEditorApp(QWidget):
         if param_err:
             self.edited_label.setText(param_err)
             return
-        
 
         self.start_processing(path)
 
@@ -383,12 +382,85 @@ class BitmapEditorApp(QWidget):
         label.setPixmap(scaled)
 
 
+SPLASH_MESSAGES = [
+    ("Inizializzazione del sistema...",      "#2753e0", 800),
+    ("Facendo i complimenti al professore per un captatio benevolentiae...",            "#1c67de", 2000),
+    ("Calcolando il senso della vita, l'universo e tutto quanto...", "#38d729", 2000),
+    ("Verificando se P = NP.... in caso di crash allora P ≠ NP.", "#89b4fa", 2000),
+    ("Dimostrando l'Ipotesi di Riemann...\n Ooops, i margini dello splash screen sono troppo stretti per scriverla.", "#f4df00", 2000),
+    ("Avvio interfaccia grafica...",         "#ff497c", 600),
+]
+ 
+ 
+def build_fallback_pixmap() -> QPixmap:
+    pix = QPixmap(700, 440)
+    pix.fill(QColor("#0f0f1a"))
+    painter = QPainter(pix)
+    painter.setPen(QPen(QColor("#89b4fa")))
+    painter.setFont(QFont("Georgia", 48, QFont.Weight.Bold))
+    painter.drawText(pix.rect().adjusted(0, -60, 0, 0),
+                     Qt.AlignmentFlag.AlignCenter, "JPEG Compressor")
+    painter.setPen(QPen(QColor("#cdd6f4")))
+    painter.setFont(QFont("Courier New", 12))
+    painter.drawText(pix.rect().adjusted(0, 60, 0, 0),
+                     Qt.AlignmentFlag.AlignCenter,
+                     "Metodi del Calcolo Scientifico")
+    painter.setPen(QPen(QColor("#e04444"), 2))
+    painter.drawLine(0, 436, 700, 436)
+ 
+    painter.end()
+    return pix
+ 
+ 
+def run_splash(app: QApplication) -> QSplashScreen:
+
+    splash_pix = build_fallback_pixmap()
+    splash = QSplashScreen(splash_pix)
+    splash.setWindowTitle("BicoPeg-Splash") #nome random che ho messo perche mi serve un nome alla finestra per le regole su hyprland 
+                                            #(con tiling attivo senza gestione float esce un po male)
+
+    splash.setWindowFlags(
+        Qt.WindowType.WindowStaysOnTopHint | 
+        Qt.WindowType.FramelessWindowHint | 
+        Qt.WindowType.SubWindow
+    )
+
+    screen = app.primaryScreen().geometry() # type: ignore
+    size = splash.size()
+    x = (screen.width() - size.width()) // 2
+    y = (screen.height() - size.height()) // 2
+    splash.move(x, y)
+    
+    splash.show()
+    app.processEvents()
+ 
+    for msg, color_hex, delay_ms in SPLASH_MESSAGES:
+
+        splash.showMessage(
+            f"{msg}\n\n",
+            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter,
+            QColor(color_hex),
+        )
+        
+        splash.repaint() 
+        app.processEvents()
+        
+        QThread.msleep(delay_ms)
+ 
+    return splash
+ 
+ 
 def run_app(img_path: str, F: int, d: int):
     app = QApplication(sys.argv)
-    app.setStyleSheet(DARK_STYLE)
-    w = BitmapEditorApp(img_path, F, d)
+    app.setStyleSheet(DARK_STYLE)  
+ 
+    splash = run_splash(app)
+    w = BitmapEditorApp(img_path, F, d)  
     w.show()
-    app.exec()
+ 
+    splash.finish(w)          
+    sys.exit(app.exec())
+
 
 
 if __name__ == "__main__":
