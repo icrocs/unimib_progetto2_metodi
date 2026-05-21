@@ -1,6 +1,5 @@
-
 import numpy as np
-from utils import dct, dct2
+from utils import dct, dct2, idct2
 from PIL import Image
 
 
@@ -27,7 +26,7 @@ def compress_block(block: np.ndarray, d: int) -> np.ndarray:
                                                                   #k and l that represent the row and column indices of the DCT coefficients in the block. 
                                                                   # The indexing="ij" argument ensures that the first dimension corresponds to rows (k) and the second dimension corresponds to columns (l).
     c[k + l >= d] = 0.0 #zero coefficients where k+l >= d
-    return np.clip(np.round(dct2(c)), 0, 255).astype(np.uint8) #inverse DCT2 (DCT2 its is own inverse, what a magic!) and clip to [0, 255] for valid pixel values 
+    return np.clip(np.round(idct2(c)), 0, 255).astype(np.uint8) #inverse DCT (DCT-III) and clip to [0, 255]
 
 
 def compress_image(img: Image.Image, F: int, d: int) -> Image.Image:
