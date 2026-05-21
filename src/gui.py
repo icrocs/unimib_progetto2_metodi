@@ -321,6 +321,14 @@ class BitmapEditorApp(QWidget):
         if not path:
             self.edited_label.setText("Nessun file selezionato")
             return
+
+        f1 = self._read_int_field(self.field1_edit, 0)
+        f2 = self._read_int_field(self.field2_edit, 0)
+        param_err = jpeg.validate_params(Image.open(path).convert("L"), f1, f2)
+        if param_err:
+            self.edited_label.setText(param_err)
+            return
+
         self.start_processing(path)
 
     def start_processing(self, path: str):
