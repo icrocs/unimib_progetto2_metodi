@@ -1,4 +1,5 @@
 \documentclass[italian]{article}
+\usepackage{enumerate}
 \usepackage{listings}
 \usepackage{xcolor}
 \usepackage{makeidx}
@@ -81,6 +82,7 @@ In questo modo non si ha pi\`u informazione locale come nella base canonica ma s
 Il risultato \`e quindi il vettore \texttt{y} di coefficienti che rappresenta l'input in termini di componenti di frequenza del coseno.
 
 \subsection{Implementazione DCT2}
+Per calcolare la funzione \texttt{DCT2} \'e possibile iterare su righe e colonne la \texttt{DCT1}.\\
 
 \begin{lstlisting}[language=Python]
 # DCT1 for columns
@@ -91,6 +93,49 @@ for j in range(N):
 for j in range(N):
 	y_m[j,:] = np.transpose(dct(np.transpose(m_in[j,:])))
 \end{lstlisting}
+
+Il primo passaggio \`e scorrere ogni colonna della matrice originale applicando la funzione dct1, salvando il risultato nella corrispondente colonna.\\
+Successivamente si applica lo stesso passaggio, alla matrice ottenuta precedentemente, ma sulle righe.
+
+\section{Benchmark}
+Il file \texttt{benchmark.py} implementa un semplice benchmark sulla funzione \texttt{dct2} implementata, su matrici di dimensione NxN. con N che ha range da 10 a 200 in step da 10. Confrontandola con quella della libreria Python \texttt{numpy}
+
+\lstinline|n_values = np.arange(10, 201, 10)|
+\\
+\noindent
+Per poi mostrare i risultati a schermo tramite la libreria \texttt{matplotlib}.
+
+
+\begin{lstlisting}[language=Python]
+for n in n_values:
+	x = np.random.randint(0, 255, (n, n)).astype(float) - 128
+
+	start_t = time.perf_counter()
+	_ = dctn(x, type=2, norm='ortho')
+	end_t = time.perf_counter()
+	scipy_times.append((end_t - start_t) * 1000) # Convertiamo in ms
+
+	start_t = time.perf_counter()
+	_ = utils.dct2(x)
+	end_t = time.perf_counter()
+	custm_times.append((end_t - start_t) * 1000) # Convertiamo in ms
+
+	print(f"Test completato per N={n}")
+
+return np.array(scipy_times), np.array(custm_times)
+\end{lstlisting}
+
+La funzione esegue quindi i seguenti step per ogni valore nel range definito:
+
+\begin{enumerate}
+	\item Genera una matrice quadrata $n \times n$ di valori interi casuali tra 0 e 255 (simulando pixel di un'immagine)
+	
+	\item Viene applicata la funzione \texttt{dctn} della libreria, tenendo tracia del temp di esecuzione, usando i parametri \texttt{norm='ortho'} che applica una normalizzazione ortonormale. e \texttt{type=2} che utilizza lo standard per la compressione.
+	
+	\item Viene misurato il tempo della funzione \texttt{dct2} implementata non dalla libreria sulla stessa matrice
+	
+	\item Infine vengono salvati i tempi di esecuzione per essere successivamente mostrati
+\end{enumerate}
 
 \printindex
 \end{document}

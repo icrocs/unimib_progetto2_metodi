@@ -1,7 +1,6 @@
 import math
 import numpy as np
 
-
 # v can be passed by reference because never modified
 def dct(v):
     N = len(v)
