@@ -1,0 +1,96 @@
+\documentclass[italian]{article}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{makeidx}
+\makeindex
+
+\title{
+	Utility di compressione di immagini tramite DCT \\
+	\normalsize Benchmark e comparatore della compressione DCT2
+}
+
+\date{A.A.: 2025/2026}
+
+\author{
+	\normalsize
+	Nicolas Chines (matr. 899536) \\
+	\normalsize
+	Jacopo Borgato (matr. 866305)
+}
+
+\lstset{
+	language=Python,
+	basicstyle=\ttfamily\small,
+	keywordstyle=\color{blue}\bfseries,
+	commentstyle=\color{green}\itshape,
+	stringstyle=\color{red},
+	showstringspaces=false,
+	breaklines=true,
+	tabsize=4,
+	numbers=left
+}
+
+\begin{document}
+\maketitle
+
+
+\centerline{\bfseries{Sommario}}
+Il progetto consiste nella realizzazione di due software che implementano la compressione delle immagini basata su DCT.
+
+Nella prima parte viene implementato l'algoritmo DCT2, confrontando successsivamente i tempi di esecuzione con quello implementato dalla libreria numpy.
+
+Per la seconda parte il programma permette all'utente di scegliere da filesystem un'immagine bitmap in toni di grigio, applicare la compressione secondo i parametri specificati e visualizzare affiancate l'immagine originale e compressa.
+
+
+\newpage
+
+\section{Introduzione}
+La funzione dct2 calcola la trasformata discreta del coseno 2D di una matrice 2D, tipicamente un'immagine. Questa trasformata converte i dati spaziali in componenti di frequenza. \`E una tecnica fondamentale per la compressione di immagini, alla base dello standard JPEG. 
+
+L'operazione \`e separabile: equivale a applicare una DCT 1D prima sulle righe e poi sulle colonne (o viceversa). I coefficienti ottenuti permettono di ricostruire l'immagine originale tramite la trasformata inversa (idct2). Durante la compressione, i coefficienti ad alta frequenza, che risultano essere meno percepibili all'occhio umano, possono essere eliminati per ridurre la dimensione del file con una perdita di qualità limitata.
+
+\section{Implementazione DCT / DCTN}
+L'idea che sta alla base del calcolo della \texttt{DCT} \`e la trasformazione da base canonica in uno spazio vettoriale a quella dei coseni.\\
+
+\subsection{Implementazione DCT1}
+Come fattore di normalizzazione viene usato \texttt{1/sqrt(N)} per il primo coefficente, per i restanti invece \texttt{sqrt(2/N)}.\\
+In fase di inizializzazione viene creato un vettore di output \texttt{y}. di lunghezza pari alla dimensione del vettore, pieno di zeri.
+
+\begin{lstlisting}[language=Python]
+N = len(v)
+y = np.zeros(N, dtype=float)
+\end{lstlisting}
+
+Successivamente viene calcolato il coefficente \texttt{k} per ogni posizione nel seguente modo:
+
+
+\begin{lstlisting}[language=Python]
+if k == 0:
+	Ck = 1.0 / math.sqrt(N)
+else:
+	Ck = math.sqrt(2.0 / N)
+	
+for i in range(N):
+	ak = math.cos((math.pi * k * (2*i + 1)) / (2 * N)) * v[i]
+	sum_cos += ak
+	y[k] = Ck * sum_cos
+\end{lstlisting}
+
+Dove \texttt{Ck} \`e il fattore di normalizzazione, \texttt{ak} \`e la base della DCT, che rappresenta le diverse frequenze, la quale viene aggiunta alla somma dei coseni.\\
+In questo modo non si ha pi\`u informazione locale come nella base canonica ma si ha informazione riguardante tutto il vettore.\\
+Il risultato \`e quindi il vettore \texttt{y} di coefficienti che rappresenta l'input in termini di componenti di frequenza del coseno.
+
+\subsection{Implementazione DCT2}
+
+\begin{lstlisting}[language=Python]
+# DCT1 for columns
+for j in range(N):
+	y_m[:,j] = dct(m_in[:,j])
+
+# DCT1 for rows
+for j in range(N):
+	y_m[j,:] = np.transpose(dct(np.transpose(m_in[j,:])))
+\end{lstlisting}
+
+\printindex
+\end{document}

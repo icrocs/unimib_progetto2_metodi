@@ -2,9 +2,7 @@ import math
 import numpy as np
 
 
-# TODO cosi funziona, ma dagli appunti sarebbe diversa:
-# la sommatoria con i non parte da 0 ma da 1, con conseguenze 2i non a 0 la prima volta
-# ?????? 
+# v can be passed by reference because never modified
 def dct(v):
     N = len(v)
     y = np.zeros(N, dtype=float)
