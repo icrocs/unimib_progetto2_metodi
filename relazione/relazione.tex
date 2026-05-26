@@ -3,6 +3,9 @@
 \usepackage{listings}
 \usepackage{xcolor}
 \usepackage{makeidx}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{hyperref}
 \makeindex
 
 \title{
@@ -42,6 +45,9 @@ Nella prima parte viene implementato l'algoritmo DCT2, confrontando successsivam
 
 Per la seconda parte il programma permette all'utente di scegliere da filesystem un'immagine bitmap in toni di grigio, applicare la compressione secondo i parametri specificati e visualizzare affiancate l'immagine originale e compressa.
 
+\newpage
+
+\tableofcontents
 
 \newpage
 
@@ -98,6 +104,7 @@ Il primo passaggio \`e scorrere ogni colonna della matrice originale applicando 
 Successivamente si applica lo stesso passaggio, alla matrice ottenuta precedentemente, ma sulle righe.
 
 \section{Benchmark}
+\subsection{Implementazione}
 Il file \texttt{benchmark.py} implementa un semplice benchmark sulla funzione \texttt{dct2} implementata, su matrici di dimensione NxN. con N che ha range da 10 a 200 in step da 10. Confrontandola con quella della libreria Python \texttt{numpy}
 
 \lstinline|n_values = np.arange(10, 201, 10)|
@@ -137,5 +144,161 @@ La funzione esegue quindi i seguenti step per ogni valore nel range definito:
 	\item Infine vengono salvati i tempi di esecuzione per essere successivamente mostrati
 \end{enumerate}
 
-\printindex
+\subsection{Analisi dei risultati}
+La figura \ref{fig:analisi_benchmark} mostra, su scala logaritmica, i risultati dei vari benchmark su matrici di dimensioni diverse.
+
+\begin{figure}[h!]
+	\includegraphics[width=\linewidth]{./images/analisi_benchmark.png}
+	\caption{Grafico dei tempi di computazione}
+	\label{fig:analisi_benchmark}
+\end{figure}
+
+Si pu\`o notare come l'andamento iniziale sia relativamente irregolare per quanto riguarda l'implementazione della libreria.
+\\
+Mentre la funzione custom, in mancanza di ottimizzazioni, risulta attenersi di pi\'u a $O(N^3)$.
+
+\newpage
+
+\section{Compressione di Immagini}
+
+Per la seconda parte del progetto si \`e implementato un programma dotato di GUI che permetta di mostrare a schermo un'immagine selezionata compressa.\\
+
+\subsection{Interfaccia Grafica}
+
+La figura \ref{fig:qt_gui} riporta l'interfaccia grafica mostrata quando si esegue il programma senza argomenti, presentando:
+
+\begin{itemize}
+	\item In alto un'area per poter scegliere il file immagine e i rispettivi parametri per la DCT2
+	\item Due aree in basso affiancate per mostrare vicine l'immagine selezionata e la relativa compressa
+\end{itemize}
+
+\begin{figure}[h!]
+	\includegraphics[width=\linewidth]{./images/qt_gui.png}
+	\caption{Grafico dei tempi di computazione}
+	\label{fig:qt_gui}
+\end{figure}
+
+L'applicazione \`e stata scritta utilizzando la libreria Python \texttt{PyQT6}, in modo da creare rapidamente un'interfaccia grafica moderna.\\
+Per la gestione delle immagini si \`e utilizzata la libreria \texttt{Pillow}, la quale permette di gestire in modo semplice le immagini.
+
+\subsection{Funzioni GUI}
+Se avviata senza argomenti (\ref{fig:qt_gui}) l'applicazione richiede all'utente di inserire un percorso che punta a un file immagine, in formato \texttt{bmp} (Bitmap).\\
+L'immagine deve essere in toni di grigio, se non fosse cos\`i viene convertita automaticamente.
+
+\lstinline|img = Image.open(path).convert("L")|
+\\
+I campi \texttt{F} e \texttt{d} permettono di impostare relativamente i parametri \texttt{F} e \texttt{d} relativi alla DCT2.\\
+Dove \texttt{F} \`e la grandezza della matrice $F \times F$ su cui viene applicata la funzione \texttt{dctn} dopo aver diviso l'immagine in blocchi.\\
+Mentre \texttt{d} rappresenta il valore della soglia delle frequenze da eliminare al fine della compressione.
+
+La figura \ref{fig:tony_comp} mostra un esempio di compressione dell'immagine utilizzando una divisione in blocchi da $8 \times 8$ mantenendo solamente la prima frequenza (\texttt{d=1}).
+
+\begin{figure}[h!]
+	\includegraphics[width=\linewidth]{./images/tony_comp.png}
+	\caption{Esempio DC 8x8}
+	\label{fig:tony_comp}
+\end{figure}
+
+\subsection{Implementazione}
+
+Una volta importata l'immagine Bitmap e convertita in toni di grigio, viene compressa e salvata, rappresentata in bytes, in un buffer, quindi mostrata a fianco dell'originale.
+
+\begin{lstlisting}[language=Python]
+compressed = jpeg.compress_image(img, F, d)
+buf = BytesIO()
+compressed.save(buf, format="BMP")
+return buf.getvalue()
+\end{lstlisting}
+
+La logica di compressione \`e implementata nel file \texttt{jpeg.py}. In particolare la funzione \lstinline|compress_image| \ref{lst:compress-image} \`e quella che implementa la compressione dato un oggetto \texttt{Image.Image}.
+
+\begin{lstlisting}[caption={compress\_image}, escapeinside={(*}{*)}, language=Python, label={lst:compress-image}]
+def compress_image(img: Image.Image, F: int, d: int) -> Image.Image:
+	"""Compress a grayscale PIL image with DCT2 block compression using multiple CPU cores."""
+	A = np.array(img.convert("L")) # convert to grayscale (*\label{line:save_a}*)
+	n_y, n_x, blocks = block_splitter(A, F) (*\label{line:split}*)
+	core = os.cpu_count() or 1
+	max_cores = max(1, core - 2) #lasciamo 2 core liberi per il sistema e altre operazioni( se meno di cpu.count() < 4 core allora ne usa 1)
+	with ProcessPoolExecutor(max_workers=max_cores) as executor:
+		compressed_iter = executor.map(
+			compress_block, 
+			blocks, 
+			[d] * len(blocks)
+		)
+		compressed = list(compressed_iter)
+	rows = [np.hstack(compressed[by * n_x : (by + 1) * n_x]) for by in range(n_y)] (*\label{line:hstack}*)
+	return Image.fromarray(np.vstack(rows) (*\label{line:vstack}*)
+\end{lstlisting}
+
+La funzione inizializza \texttt{A} come array numpy dell'immagine passata (\ref{line:save_a}), divide quindi la matrice (array \texttt{A}) in blocchi da $F \times F$ (\ref{line:split}) ed esegue la compressione su ognuno di essi, parallelizzando l'operazione.\\
+Infine ricostruisce l'immagine dai blocchi compressi, prima chiamando la funzione numpy \texttt{hstack} (\ref{line:hstack}), che concatena gli array orizzontalmente, e successivamente \texttt{hstack} (\ref{line:vstack}), che invece concatena gli array in verticale, ottenendo cosi l'immagine completa.
+
+La funzione \texttt{block\_splitter} \ref{lst:block-splitter} implementa la logica di suddivisione della matrice rappresentante l'immagine in blocchetti, allineati cominciando dal'alto a sinistra.
+\begin{lstlisting}[caption={block\_splitter}, escapeinside={(*}{*)}, language=Python, label={lst:block-splitter}]
+def block_splitter(A: np.ndarray, F: int) -> tuple[int, int, list[np.ndarray]]:
+	"""Split a 2-D array into FxF blocks (top-left aligned, remainder discarded).
+	Returns (n_blocks_y, n_blocks_x, list_of_blocks).
+	"""
+	h, w = A.shape
+	n_y, n_x = h // F, w // F
+
+	#crop the input array A to ensure its dimensions are multiples of F.
+	A = A[: n_y * F, : n_x * F].astype(float)
+
+	#extract the FxF block from the cropped array A for each block position (by, bx).
+	return n_y, n_x, [
+		A[by * F : (by + 1) * F, bx * F : (bx + 1) * F]
+		for by in range(n_y)
+		for bx in range(n_x)
+	]
+\end{lstlisting}
+
+\subsection{Vari test}
+
+\begin{figure}[h!]
+	\centering
+	\begin{subfigure}[b]{0.3\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{images/perfect_squares.png}
+		\caption{Quadrati da 10}
+		\label{fig:perfect_subdivision}
+	\end{subfigure}
+	\hfill
+	\begin{subfigure}[b]{0.3\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{images/11x_squares.png}
+		\caption{Quadrati da 11}
+		\label{fig:11x_squares}
+	\end{subfigure}
+	\hfill
+	\begin{subfigure}[b]{0.3\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{images/15x_squares.png}
+		\caption{Quadrati da 15}
+		\label{fig:15x_squares}
+	\end{subfigure}
+	\caption{Test su immagine divisa in quadrati}
+	\label{fig:squares_images}
+\end{figure}
+
+\subsubsection{Fenomeno di Gibbs}
+\begin{figure}[h!]
+	\centering
+	\begin{subfigure}[b]{0.5\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{images/gibbs.png}
+		\caption{Gibbs}
+		\label{fig:gibbs}
+	\end{subfigure}
+	\hfill
+	\begin{subfigure}[b]{0.37\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{images/gibbs_zoom.png}
+		\caption{Dettaglio Gibbs}
+		\label{fig:gibbs_zoom}
+	\end{subfigure}
+	\caption{Fenomeno di Gibbs}
+	\label{fig:gibbs_graphs}
+\end{figure}
+
 \end{document}

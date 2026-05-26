@@ -8,17 +8,19 @@ from PIL import Image
 
 def block_splitter(A: np.ndarray, F: int) -> tuple[int, int, list[np.ndarray]]:
     """Split a 2-D array into F×F blocks (top-left aligned, remainder discarded).
-
     Returns (n_blocks_y, n_blocks_x, list_of_blocks).
     """
     h, w = A.shape
     n_y, n_x = h // F, w // F
-    A = A[: n_y * F, : n_x * F].astype(float) #crop the input array A to ensure its dimensions are multiples of F, and convert to float for DCT processing. This is necessary because the DCT operates on blocks of size F×F, and any leftover pixels that don't fit into a complete block would be discarded. By cropping the image to the nearest multiple of F, we ensure that all pixels are included in the block processing without any issues.
+
+    #crop the input array A to ensure its dimensions are multiples of F.
+    A = A[: n_y * F, : n_x * F].astype(float)
+    
+    #extract the FxF block from the cropped array A for each block position (by, bx).
     return n_y, n_x, [
-        A[by * F : (by + 1) * F, bx * F : (bx + 1) * F] #extract the F×F block from the cropped array A for each block position (by, bx) and store it in a list. 
-        for by in range(n_y)                            #The blocks are ordered row-wise, 
-        for bx in range(n_x)                            #meaning that we first iterate over the blocks in the y-direction (rows)
-                                                        # and then over the blocks in the x-direction (columns) within each row.
+        A[by * F : (by + 1) * F, bx * F : (bx + 1) * F]
+        for by in range(n_y)
+        for bx in range(n_x)
     ]
 
 
