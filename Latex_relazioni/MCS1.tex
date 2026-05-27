@@ -15,6 +15,7 @@
 \usepackage{xcolor}
 \usepackage{float}
 \usepackage{mathtools}
+\usepackage{tcolorbox}
 
 % --- Configurazione listing ---
 \definecolor{codegreen}{rgb}{0,0.6,0}
@@ -41,6 +42,16 @@
     tabsize=2
 }
 \lstset{style=mystyle}
+
+% --- Box per le note implementative ---
+\tcbuselibrary{skins,breakable}
+\newtcolorbox{implbox}{
+  colback=blue!4!white,
+  colframe=blue!50!black,
+  fonttitle=\bfseries\small,
+  title={Nota implementativa},
+  breakable
+}
 
 % --- Intestazioni ---
 \pagestyle{fancy}
@@ -94,6 +105,7 @@ La libreria è stata testata su quattro matrici sparse reali fornite (SPA1, SPA2
 
 % ==============================================================================
 \section{Fondamenti matematici}
+\label{sec:math}
 % ==============================================================================
  
 Sia $A \in \mathbb{R}^{n \times n}$ una matrice simmetrica e definita positiva (SPD) e
@@ -103,8 +115,18 @@ $b \in \mathbb{R}^n$ il termine noto. Vogliamo risolvere il sistema lineare
 \end{equation}
 I metodi iterativi, partendo da un vettore iniziale $x^{(0)} \in \mathbb{R}^n$,
 generano una successione $\{x^{(k)}\}$ che, sotto opportune ipotesi sulla matrice $A$,
-converge alla soluzione esatta $\widetilde{x} \in \mathbb{R}^n$.
- 
+converge alla soluzione esatta $\widetilde{x} = A^{-1}b$.
+
+\begin{implbox}
+In tutta la libreria la matrice \texttt{A} è memorizzata in formato sparso CSR
+(\texttt{csr\_matrix} di SciPy). I prodotti matrice-vettore $Av$ sono eseguiti
+tramite \texttt{A.dot(v)}, che sfrutta la struttura sparsa evitando di
+materializzare gli zeri. Il vettore soluzione è sempre inizializzato a
+\texttt{x = np.zeros(n)} (metodo \texttt{\_initial\_guess}). Il criterio di
+arresto è calcolato dal metodo \texttt{\_stopping\_criterion(x)}, che restituisce
+$\|Ax - b\|_2 / \|b\|_2$ confrontato con la soglia \texttt{tol}.
+\end{implbox}
+
 \subsection{Proprietà delle matrici SPD}
 Una matrice $A$ è \emph{simmetrica e definita positiva} (SPD) se $A = A^T$ e
 $x^T A x > 0$ per ogni $x \neq 0$.
@@ -141,31 +163,27 @@ Introducendo il \emph{residuo} al passo $k$,
 \begin{equation}
     r^{(k)} = b - A x^{(k)},
 \end{equation}
-l'equazione~\eqref{eq:iter_base} può essere riscritta in una forma
-computazionalmente più conveniente. Sostituendo $N = P - A$ si ottiene
+e sostituendo $N = P - A$ in \eqref{eq:iter_base}, si ottiene la formula di
+aggiornamento nella forma computazionalmente più conveniente:
 \begin{equation}
     x^{(k+1)} = x^{(k)} + P^{-1} r^{(k)}.
     \label{eq:update}
 \end{equation}
 Questa formula è comune a tutti i metodi stazionari presentati di seguito;
 ciascuno di essi si distingue unicamente per la scelta della matrice $P$.
- 
-\paragraph{Convergenza.}
-La Proposizione~4.1 delle note del corso stabilisce che se $A$ e $P$ sono
-simmetriche e definite positive e se anche $2P - A$ è definita positiva, il
-metodo iterativo~\eqref{eq:update} converge per ogni dato iniziale $x^{(0)}$.
-Una condizione sufficiente alternativa, valida sia per Jacobi che per
-Gauss-Seidel, è che $A$ sia a \emph{dominanza diagonale stretta per righe}:
-\begin{equation}
-    |a_{i,i}| > \sum_{\substack{j=1\\j\neq i}}^{n} |a_{i,j|}
-    \qquad \forall\, i = 1, \dots, n.
-\end{equation}
+
+\paragraph{Convergenza .}
+Se $A$ e $P$ sono simmetriche e definite positive e se anche $2P - A$ è
+definita positiva, il metodo iterativo~\eqref{eq:update} converge per ogni
+dato iniziale $x^{(0)}$.
  
 \subsection{Jacobi}
-Per il metodo di Jacobi le matrici $P$ e $N$ dello splitting~\eqref{eq:splitting}
-sono definite come segue. La matrice $P$ è la diagonale di $A$:
+\label{subsec:jacobi}
+
+Per il metodo di Jacobi la matrice $P$ dello splitting~\eqref{eq:splitting}
+è la parte \emph{diagonale} di $A$:
 \begin{equation}
-    P :=
+    P := D =
     \begin{pmatrix}
         a_{1,1} & 0       & \cdots & 0       \\
         0       & a_{2,2} & \cdots & 0       \\
@@ -173,7 +191,7 @@ sono definite come segue. La matrice $P$ è la diagonale di $A$:
         0       & 0       & \cdots & a_{n,n}
     \end{pmatrix},
     \qquad
-    P^{-1} =
+    D^{-1} =
     \begin{pmatrix}
         1/a_{1,1} & 0         & \cdots & 0         \\
         0         & 1/a_{2,2} & \cdots & 0         \\
@@ -181,33 +199,45 @@ sono definite come segue. La matrice $P$ è la diagonale di $A$:
         0         & 0         & \cdots & 1/a_{n,n}
     \end{pmatrix}.
 \end{equation}
-La matrice $N$ è invece la parte fuori diagonale di $A$ con segno cambiato:
+Poiché $D$ è diagonale, il termine $D^{-1}r^{(k)}$ si riduce a $n$ divisioni
+scalari, rendendo ogni iterazione di costo $O(\text{nnz})$ (dominato dal
+prodotto sparso $Ax^{(k)}$). La formula di aggiornamento~\eqref{eq:update} diventa:
 \begin{equation}
-    N :=
-    \begin{pmatrix}
-        0        & -a_{1,2} & \cdots & -a_{1,n} \\
-        -a_{2,1} & 0        & \cdots & -a_{2,n} \\
-        \vdots   & \vdots   & \ddots & \vdots   \\
-        -a_{n,1} & -a_{n,2} & \cdots & 0
-    \end{pmatrix}.
+    x^{(k+1)} = x^{(k)} + D^{-1} r^{(k)}, \qquad r^{(k)} = b - Ax^{(k)}.
+    \label{eq:jacobi_update}
 \end{equation}
-Poiché $P$ è diagonale, il suo inverso si calcola in $O(n)$ operazioni semplicemente
-prendendo i reciproci degli elementi diagonali. Il termine $P^{-1}r^{(k)}$ si riduce
-quindi a $n$ moltiplicazioni scalari. La formula di aggiornamento~\eqref{eq:update}
-diventa:
-\begin{equation}
-    x^{(k+1)} = x^{(k)} + P^{-1} r^{(k)},
-    \qquad r^{(k)} = b - Ax^{(k)},
-\end{equation}
-con costo totale per iterazione pari a $O(n^2)$, dominato dal prodotto
-matrice-vettore $Ax^{(k)}$.
- 
+
+\begin{implbox}
+Nel metodo \texttt{jacobi} di \texttt{solvers.py} la diagonale di $A$ è
+estratta una sola volta prima del ciclo:
+\begin{center}
+\texttt{D\_diag = self.A.diagonal()}
+\end{center}
+Il vettore \texttt{D\_diag} corrisponde all'array $(a_{1,1},\dots,a_{n,n})$.
+Ad ogni iterazione il residuo $r^{(k)}$ è calcolato come
+\begin{center}
+\texttt{residual = self.b - self.A.dot(x)}
+\end{center}
+e l'aggiornamento~\eqref{eq:jacobi_update} è eseguito con la divisione
+elemento per elemento:
+\begin{center}
+\texttt{x = x + (residual / D\_diag)}
+\end{center}
+che equivale a $x^{(k+1)} = x^{(k)} + D^{-1}r^{(k)}$ senza mai formare
+esplicitamente $D^{-1}$, riducendo il costo a $O(n)$ operazioni per la
+divisione più $O(\text{nnz})$ per il prodotto sparso. Prima del ciclo viene
+verificato che la diagonale non contenga zeri (\texttt{np.any(D\_diag == 0)}),
+condizione che renderebbe il metodo inapplicabile.
+\end{implbox}
+
 \subsection{Gauss-Seidel}
-Il metodo di Gauß-Seidel adotta lo stesso schema generale, ma con una scelta
-diversa di $P$. La matrice $P$ è la parte \emph{triangolare inferiore} di $A$
-(diagonale inclusa):
+\label{subsec:gs}
+
+Il metodo di Gauss-Seidel adotta lo stesso schema generale~\eqref{eq:update},
+con una scelta diversa di $P$. La matrice $P$ è la parte
+\emph{triangolare inferiore} di $A$ (diagonale inclusa), denotata $L$:
 \begin{equation}
-    P :=
+    P := L =
     \begin{pmatrix}
         a_{1,1} & 0       & \cdots & 0       \\
         a_{2,1} & a_{2,2} & \cdots & 0       \\
@@ -215,38 +245,58 @@ diversa di $P$. La matrice $P$ è la parte \emph{triangolare inferiore} di $A$
         a_{n,1} & a_{n,2} & \cdots & a_{n,n}
     \end{pmatrix},
 \end{equation}
-mentre $N$ è la parte triangolare superiore stretta di $A$ con segno opposto:
+mentre $N$ è la parte triangolare superiore stretta di $A$ con segno opposto.
+
+\paragraph{Formula di aggiornamento.}
+L'aggiornamento resta $x^{(k+1)} = x^{(k)} + L^{-1}r^{(k)}$, ma $L$ non
+viene mai invertita esplicitamente. Si risolve invece il sistema triangolare
 \begin{equation}
-    N :=
-    \begin{pmatrix}
-        0 & -a_{1,2} & \cdots & -a_{1,n} \\
-        0 & 0        & \cdots & -a_{2,n} \\
-        \vdots & \vdots & \ddots & \vdots \\
-        0 & 0 & \cdots & 0
-    \end{pmatrix}.
+    L\, y = r^{(k)}
+    \label{eq:gs_fwd}
 \end{equation}
-La formula di aggiornamento resta $x^{(k+1)} = x^{(k)} + P^{-1} r^{(k)}$,
-ma ora $P$ è triangolare inferiore e non è mai invertita esplicitamente:
-calcolare $P^{-1}$ è un'operazione onerosa e numericamente instabile. Si ricorre
-invece alla seguente equivalenza: trovare il vettore $y$ tale che
+con la \emph{sostituzione in avanti}, ottenendo $y = L^{-1}r^{(k)}$ a costo
+$O(n^2)$, e si pone $x^{(k+1)} = x^{(k)} + y$.
+
+\paragraph{Forma componente per componente (implementazione).}
+Il sistema~\eqref{eq:gs_fwd} componente per componente è:
 \begin{equation}
-    P\, y = r^{(k)}
+    x_i^{(k+1)} = \frac{1}{a_{ii}}\!\left(
+        b_i
+        - \sum_{j=1}^{i-1} a_{ij}\, x_j^{(k+1)}
+        - \sum_{j=i+1}^{n} a_{ij}\, x_j^{(k)}
+    \right),
+    \qquad i = 1,\dots,n.
+    \label{eq:gs_comp}
 \end{equation}
-è del tutto equivalente a calcolare $y = P^{-1}r^{(k)}$. Poiché $P$ è triangolare
-inferiore, questo sistema si risolve con la \emph{sostituzione in avanti} a costo
-$O(n^2)$, senza mai formare $P^{-1}$. Lo pseudocodice per l'iterata
-$k$-esima è quindi:
-\begin{enumerate}
-    \item $r^{(k)} = b - Ax^{(k)}$;
-    \item risolvere $Py = r^{(k)}$ tramite sostituzione in avanti;
-    \item $x^{(k+1)} = x^{(k)} + y$.
-\end{enumerate}
-Rispetto a Jacobi, il costo per iterazione rimane $O(n^2)$, ma i contributi
-sono due: il prodotto matrice-vettore per il residuo e la sostituzione in
-avanti. Nella nostra implementazione la sostituzione in avanti viene eseguita
-su una struttura densa, il che può risultare costoso per matrici di grandi
-dimensioni; si veda la Sezione~\ref{sec:impl} per i dettagli.
- 
+Nella formula~\eqref{eq:gs_comp} le componenti $x_j^{(k+1)}$ già calcolate
+al passo corrente vengono immediatamente riutilizzate per aggiornare le
+componenti successive: questa è la caratteristica distintiva di Gauss-Seidel
+rispetto a Jacobi, che usa soltanto valori dell'iterata precedente. Le due
+formulazioni~\eqref{eq:gs_fwd} e~\eqref{eq:gs_comp} sono \emph{algebricamente
+equivalenti}: la sostituzione in avanti applicata a $Ly = r^{(k)}$ produce
+esattamente le stesse componenti di~\eqref{eq:gs_comp}.
+
+\begin{implbox}
+Nel metodo \texttt{gauss\_seidel} la matrice sparsa è convertita in formato
+denso una sola volta prima del ciclo:
+\begin{center}
+\texttt{A = self.A.toarray()}
+\end{center}
+Il ciclo interno percorre le righe $i = 0,\dots,n-1$ e calcola la somma
+$s$ delle contribuzioni già aggiornate (indici $j < i$, vettore
+\texttt{x\_new}) e di quelle ancora all'iterazione precedente (indici $j > i$,
+vettore \texttt{x}):
+\begin{center}
+\texttt{s = A[i, :i].dot(x\_new[:i]) + A[i, i+1:].dot(x[i+1:])} \\[2pt]
+\texttt{x\_new[i] = (self.b[i] - s) / D\_diag[i]}
+\end{center}
+che corrisponde esattamente alla formula~\eqref{eq:gs_comp} con
+$1/a_{ii} \leftrightarrow$ \texttt{1/D\_diag[i]}. La scelta di lavorare su
+formato denso è stato fatto per evitare il risolutore sparso (preferibile ma che esula dal progetto) di 
+(\texttt{scipy.sparse.linalg.spsolve\_triangular}), anche se questo comporta un costo computazionale piu elevate ma per le dimensioni delle matrici del dataset fornito
+questa è accettabile.
+\end{implbox}
+
 \subsection{Forma quadratica e metodi del gradiente}
  
 I metodi del gradiente e del gradiente coniugato si basano su una diversa
@@ -269,32 +319,48 @@ $\alpha_k \in \mathbb{R}$ l'intensità del passo, calcolata ottimalmente
 lungo tale direzione.
  
 \subsection{Gradiente (Steepest Descent)}
+\label{subsec:grad}
  
-Nel metodo del gradiente (massima discesa) la direzione di aggiornamento è
-quella di massima decrescita di $\varphi$, cioè l'opposto del gradiente:
+Nel metodo del gradiente la direzione di aggiornamento è l'opposto del
+gradiente di $\varphi$, cioè il residuo corrente:
 \begin{equation}
-    d^{(k)} = -\nabla\varphi(x^{(k)}) = b - Ax^{(k)} = r^{(k)}.
+    d^{(k)} = -\nabla\varphi(x^{(k)}) = b - Ax^{(k)} =: r^{(k)}.
 \end{equation}
-Il passo $\alpha_k$ è scelto minimizzando $\varphi(x^{(k)} + \alpha\, r^{(k)})$
-rispetto ad $\alpha$, ovvero annullando la derivata rispetto a $\alpha$. Il
-calcolo esplicito fornisce:
+Il passo $\alpha_k$ è calcolato minimizzando $\varphi(x^{(k)} + \alpha\,r^{(k)})$
+rispetto a $\alpha$, ottenendo:
 \begin{equation}
-    \alpha_k = \frac{\bigl(r^{(k)}\bigr)^T r^{(k)}}
-                    {\bigl(r^{(k)}\bigr)^T A\, r^{(k)}}.
+    \alpha_k = \frac{(r^{(k)})^T r^{(k)}}{(r^{(k)})^T A\, r^{(k)}}.
+    \label{eq:alpha_grad}
 \end{equation}
 La formula di aggiornamento completa è quindi:
 \begin{align}
     r^{(k)}   &= b - A x^{(k)}, \\
-    \alpha_k  &= \frac{\bigl(r^{(k)}\bigr)^T r^{(k)}}
-                       {\bigl(r^{(k)}\bigr)^T A\, r^{(k)}}, \\
+    \alpha_k  &= \frac{(r^{(k)})^T r^{(k)}}{(r^{(k)})^T A\, r^{(k)}}, \\
     x^{(k+1)} &= x^{(k)} + \alpha_k\, r^{(k)}.
+    \label{eq:grad_update}
 \end{align}
-Il metodo converge per ogni $x^{(0)}$ grazie alle ipotesi SPD su $A$
-(Teorema~4.6 delle note). La velocità di convergenza dipende però da
-$\mathrm{cond}(A)$: quando $\lambda_{\min} \ll \lambda_{\max}$ le linee di livello
-di $\varphi$ sono fortemente ellittiche e la successione procede \emph{a zig-zag},
-con direzioni consecutive ortogonali tra loro e progresso molto lento verso
-la soluzione.
+Il metodo converge per ogni $x^{(0)}$ grazie alle ipotesi SPD su $A$. La velocità di convergenza dipende però da
+$\mathrm{cond}(A)$: quando $\lambda_{\min} \ll \lambda_{\max}$ la successione
+procede \emph{a zig-zag}, con direzioni consecutive ortogonali e progresso
+molto lento verso la soluzione.
+
+\begin{implbox}
+Nel metodo \texttt{gradient} le variabili del codice corrispondono alle
+quantità matematiche come segue. Il residuo $r^{(k)}$ è memorizzato in
+\texttt{r}; il prodotto $Ar^{(k)}$, necessario sia al numeratore che al
+denominatore di $\alpha_k$, è calcolato \emph{una sola volta} e salvato in
+\texttt{y}:
+\begin{center}
+\texttt{r = self.b - self.A.dot(x)} \quad $\longleftrightarrow$ \quad $r^{(k)} = b - Ax^{(k)}$ \\[4pt]
+\texttt{y = self.A.dot(r)} \quad $\longleftrightarrow$ \quad $y = Ar^{(k)}$ \\[4pt]
+\texttt{alpha = r.dot(r) / r.dot(y)} \quad $\longleftrightarrow$ \quad $\alpha_k = \dfrac{(r^{(k)})^T r^{(k)}}{(r^{(k)})^T A r^{(k)}}$ \\[4pt]
+\texttt{x = x + alpha * r} \quad $\longleftrightarrow$ \quad $x^{(k+1)} = x^{(k)} + \alpha_k r^{(k)}$
+\end{center}
+L'introduzione della variabile intermedia \texttt{y = A.dot(r)} è una scelta
+implementativa che evita di calcolare due volte il costoso prodotto
+matrice-vettore (una per il numeratore e una per il denominatore di
+$\alpha_k$), riducendo il numero di \texttt{dot} per iterazione da tre a due.
+\end{implbox}
  
 \subsection{Gradiente Coniugato}
  
@@ -307,7 +373,7 @@ A tale scopo, invece di usare sempre il residuo come direzione di
 aggiornamento, si costruisce una successione di direzioni $\{d^{(k)}\}$
 coniugate rispetto ad $A$, nel senso che le iterazioni già compiute lungo
 una direzione non vengono disfatte da quelle successive. La costruzione di
-queste direzioni si basa sulla condizione (Proposizione~4.2 delle note): il
+queste direzioni si basa sulla condizione: il
 vettore $x^{(k)}$ è ottimale rispetto alla direzione $d$ se e solo se
 $d \cdot r^{(k)} = 0$.
  
@@ -342,17 +408,32 @@ La nuova direzione coniugata è infine:
 \begin{equation}
     d^{(k+1)} = r^{(k+1)} - \beta_k\, d^{(k)}.
 \end{equation}
- 
+
+
+
 \paragraph{Convergenza.}
-In aritmetica esatta il metodo converge in al più $n$ iterazioni
-(Teorema~4.7 delle note), limite imposto dalla dimensione del sistema. Nella
-pratica la convergenza avviene molto prima: quando gli autovalori di $A$
-sono raggruppati in pochi cluster distinti, il CG converge in un numero di
-iterazioni pari circa al numero di cluster, indipendentemente da $n$.
- 
+In aritmetica esatta il metodo converge in al più $n$ iterazioni, limite
+imposto dalla dimensione del sistema. Nella pratica la convergenza avviene
+molto prima: quando gli autovalori di $A$ sono raggruppati in pochi cluster
+distinti, il CG converge in un numero di iterazioni pari circa al numero di
+cluster, indipendentemente da $n$.
+
 La superiorità del CG rispetto al gradiente puro si apprezza in particolare
 quando $\mathrm{cond}(A)$ è elevato: la costruzione delle direzioni coniugate
 impedisce il zig-zag e riduce sensibilmente il numero di iterazioni necessarie.
+
+\subsection{Riepilogo dei criteri di arresto}
+\label{subsec:stop}
+
+Tutti e quattro i metodi utilizzano lo stesso criterio di arresto:
+\begin{equation}
+    \frac{\|Ax^{(k)} - b\|_2}{\|b\|_2} < \texttt{tol},
+\end{equation}
+verificato dopo ogni iterazione completa nel metodo
+\texttt{\_stopping\_criterion(x)}.
+Il numero massimo di iterazioni è fissato a \texttt{max\_iter}$= 20000$ per
+Jacobi, Gauss-Seidel e Gradiente; per il Gradiente Coniugato è posto a
+\texttt{n} (dimensione della matrice), coerentemente con il limite teorico.
 
 % ==============================================================================
 \section{Aritmetica in virgola mobile e precisione numerica}
@@ -385,6 +466,7 @@ Questo implica che, per matrici mal condizionate, il criterio di arresto basato 
 
 % ==============================================================================
 \section{Implementazione}
+\label{sec:impl}
 % ==============================================================================
 La libreria è scritta in Python e sfrutta NumPy, SciPy (per il formato sparse CSR e la lettura di file Matrix Market) e Matplotlib per i grafici. Il codice è organizzato in moduli separati:
 
@@ -405,19 +487,29 @@ La libreria è scritta in Python e sfrutta NumPy, SciPy (per il formato sparse C
 Le matrici, lette con \texttt{scipy.io.mmread}, sono convertite in formato CSR (\texttt{csr\_matrix}) per ottimizzare i prodotti matrice-vettore e l'accesso alle diagonali. Tutti i prodotti $Av$ nei solutori vengono eseguiti tramite \texttt{A.dot(v)}, sfruttando la memorizzazione sparse.
 
 \paragraph{Gauss-Seidel e densificazione parziale.}
-L'implementazione di Gauss-Seidel è l'unica a richiedere la parte triangolare inferiore densa \texttt{L = np.tril(A.toarray())}, necessaria per il ciclo componente per componente. Questa scelta può diventare costosa in termini di memoria per matrici di dimensioni molto elevate ($n \gg 10^4$), dove sarebbe preferibile una risoluzione triangolare sparse con \texttt{scipy.sparse.linalg.spsolve\_triangular}. Per le matrici del dataset fornito la densificazione è accettabile.
+L'implementazione di Gauss-Seidel è l'unica a richiedere la conversione densa della matrice con \texttt{A = self.A.toarray()}, necessaria per l'accesso per riga nel ciclo componente per componente. 
+
+\paragraph{Variabile intermedia \texttt{y} nei metodi del gradiente.}
+Sia in \texttt{gradient} che in \texttt{gradient\_conjugate} il prodotto
+$A d^{(k)}$ (o $A r^{(k)}$) viene salvato in \texttt{y} prima di calcolare
+$\alpha_k$, così da non ripetere il prodotto matrice-vettore più costoso
+dell'iterazione. Questa ottimizzazione riduce il numero di \texttt{dot} da
+tre a due per iterazione.
 
 \paragraph{Criterio di arresto.}
-$\|Ax - b\|_2 / \|b\|_2 < \text{tol}$, calcolato dopo ogni iterazione completa. Il residuo relativo fornisce un controllo diretto e scalabile, indipendente dalla norma di $b$.
+$\|Ax - b\|_2 / \|b\|_2 < \text{tol}$, calcolato dopo ogni iterazione completa nel metodo \texttt{\_stopping\_criterion}. Il residuo relativo fornisce un controllo diretto e scalabile, indipendente dalla norma di $b$.
 
 \paragraph{Guess iniziale.}
-$x^{(0)} = \mathbf{0}$.
+$x^{(0)} = \mathbf{0}$ per tutti i metodi (metodo \texttt{\_initial\_guess}).
 
 \paragraph{Sistema di test.}
-Per ogni matrice viene costruito un sistema con soluzione esatta $x^* = (1,1,\dots,1)^T$ e termine noto $b = Ax^*$. In questo modo l'errore relativo $\frac{\|x^* - x^{(k)}\|_2}{\|x^*\|_2}$ è sempre calcolabile e confrontabile.
+Per ogni matrice viene costruito un sistema con soluzione esatta $x^* = (1,1,\dots,1)^T$ e termine noto $b = Ax^*$. In questo modo l'errore relativo $\|x^* - x^{(k)}\|_2 / \|x^*\|_2$ è sempre calcolabile e confrontabile.
 
 \paragraph{Numero massimo di iterazioni.}
-Fissato a 20000 per Jacobi, Gauss-Seidel e Gradiente; per il Gradiente Coniugato è posto a $n$ (dimensione della matrice), come limite teorico, ma di fatto la tolleranza viene raggiunta molto prima.
+Fissato a \texttt{max\_iter}$= 20000$ per Jacobi, Gauss-Seidel e Gradiente; per il Gradiente Coniugato è posto a \texttt{n} (dimensione della matrice), come limite teorico, ma di fatto la tolleranza viene raggiunta molto prima.
+
+\paragraph{Misurazione del tempo.}
+Ogni metodo usa \texttt{time.perf\_counter()} per misurare il tempo di esecuzione del solo ciclo iterativo (escludendo il pre-calcolo della diagonale e la conversione densa in Gauss-Seidel).
 
 \subsection{Interfaccia a riga di comando}
 La sintassi principale è:
@@ -434,13 +526,13 @@ esegue il Gradiente Coniugato sulla matrice \texttt{spa1.mtx} con tolleranza $10
 \section{Interfaccia utente testuale (TUI)}
 \label{sec:tui}
 % ==============================================================================
-In aggiunta alla CLI, il progetto include \texttt{app.py}, un'interfaccia utente testuale interattiva (\emph{Terminal User Interface}) realizzata con la libreria Python \texttt{Textual}. L'obiettivo è offrire un modo visivo, comodo e immediato per eseguire i risolutori piu volte e con differenti parametri.
+In aggiunta alla CLI, il progetto include \texttt{app.py}, un'interfaccia utente testuale interattiva (\emph{Terminal User Interface}) realizzata con la libreria Python \texttt{Textual}. L'obiettivo è offrire un modo visivo, comodo e immediato per eseguire i risolutori più volte e con differenti parametri.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{images/TUI.png}
-    \caption{Interfaggia Grafica da Terminale TUI.}
-    \label{fig:analysis_spa1}
+    \caption{Interfaccia Grafica da Terminale TUI.}
+    \label{fig:tui}
 \end{figure}
 
 
@@ -454,7 +546,7 @@ Il dataset fornito comprende quattro matrici sparse in formato Matrix Market (\t
     \item \texttt{spa1.mtx}, \texttt{spa2.mtx} : matrici di dimensioni relativamente contenute, con struttura a bande e buone proprietà spettrali.
     \item \texttt{vem1.mtx}, \texttt{vem2.mtx} : matrici provenienti da discretizzazioni agli elementi virtuali (VEM), di dimensioni maggiori e con spettro più ampio e numero di condizionamento più elevato.
 \end{itemize}
-Tutte sono simmetriche e definite positive, e presentano un'elevata sparsità . La struttura spettrale influisce direttamente sulla velocità di convergenza di tutti i metodi iterativi, come evidenziato nei risultati sperimentali.
+Tutte sono simmetriche e definite positive, e presentano un'elevata sparsità. La struttura spettrale influisce direttamente sulla velocità di convergenza di tutti i metodi iterativi, come evidenziato nei risultati sperimentali.
 
 % ==============================================================================
 \section{Risultati sperimentali}
@@ -481,8 +573,8 @@ e non esiste un ordinamento fisso tra i metodi valido in tutti i casi.
     di tempo — su \texttt{spa2} risulta addirittura più veloce del CG — grazie
     al basso costo per iterazione. Su \texttt{vem1} e \texttt{vem2} diventa
     invece il metodo \emph{più lento} in assoluto: pur avendo meno iterazioni
-    di Jacobi, il costo della sostituzione in avanti su struttura densa scala
-    male con la dimensione, portando a tempi fino a un ordine di grandezza
+    di Jacobi, il costo del ciclo componente per componente su struttura densa
+    scala male con la dimensione, portando a tempi fino a un ordine di grandezza
     superiori agli altri.
 
     \item \textbf{Jacobi} è stabile e prevedibile: il numero di iterazioni
@@ -493,8 +585,8 @@ e non esiste un ordinamento fisso tra i metodi valido in tutti i casi.
     \item \textbf{Gradiente (Steepest Descent)} mostra il comportamento più
     anomalo: su \texttt{spa1} e \texttt{spa2} esplode completamente, con
     oltre $10\,000$ iterazioni a tolleranza $10^{-10}$, probabilmente a causa di un forte comportamento 
-    a zig zag che lo porta ad oscillare attorno al minimo.
-    Su \texttt{vem1} e \texttt{vem2}, nonostante un numero di condizionamento piu alto, si comporta invece in modo simile a
+    a zig-zag che lo porta ad oscillare attorno al minimo.
+    Su \texttt{vem1} e \texttt{vem2}, nonostante un numero di condizionamento più alto, si comporta invece in modo simile a
     Jacobi, rimanendo nella stessa fascia di iterazioni e tempi.
 \end{itemize}
 
@@ -515,7 +607,8 @@ dimensione di questa matrice.
 Su \texttt{vem1} (Figura~\ref{fig:analysis_vem1}) il CG è nettamente separato
 dagli altri (circa $1$--$3$ ms contro decine o centinaia), mentre GS diventa
 il \emph{peggiore} in tempo nonostante abbia meno iterazioni di Jacobi,
-evidenziando come il costo della sostituzione in avanti diventi dominante.
+evidenziando come il costo del ciclo componente per componente su formato
+denso diventi dominante.
 
 Su \texttt{vem2} (Figura~\ref{fig:analysis_vem2}) il distacco di CG si
 accentua ulteriormente e GS raggiunge tempi dell'ordine dei $10\,000$ ms,
@@ -555,14 +648,9 @@ sia in iterazioni che in tempo.
 % ==============================================================================
 Il progetto ha raggiunto l'obiettivo di implementare e confrontare quattro solutori iterativi per sistemi lineari SPD, affiancati da un'interfaccia a riga di comando e da una TUI moderna. L'architettura modulare del codice e lo script di benchmark hanno permesso un'analisi sistematica delle prestazioni al variare di matrice e tolleranza.
 
-I risultati confermano la superiorità del Gradiente Coniugato, che unisce velocità di convergenza e stabilità numerica, risultando la scelta ottimale per sistemi SPD di grandi dimensioni. I metodi di Jacobi e Gauss-Seidel, pur semplici da implementare, richiedono molte più iterazioni; Gauss-Seidel è generalmente preferibile a Jacobi, ma l'implementazione naive su formato denso ne limita la scalabilità. Il metodo del Gradiente, pur convergente, soffre del fenomeno di zig-zag su problemi mal condizionati.
+I risultati confermano la superiorità del Gradiente Coniugato, che unisce velocità di convergenza e stabilità numerica, risultando la scelta ottimale per sistemi SPD di grandi dimensioni. I metodi di Jacobi e Gauss-Seidel, pur semplici da implementare, richiedono molte più iterazioni; Gauss-Seidel è generalmente preferibile a Jacobi, ma il ciclo componente per componente su formato denso ne limita la scalabilità. Il metodo del Gradiente, pur convergente, soffre del fenomeno di zig-zag su problemi mal condizionati.
 
-
-L'attività ha permesso di approfondire non solo gli aspetti teorici dei metodi iterativi, ma anche di vedere in modo pratico come la scelta del solutore non
-sia mai indifferente: matrici con struttura e condizionamento diversi
-premiano metodi diversi, e affidarsi a un unico algoritmo senza analizzarne
-le proprietà può portare a prestazioni peggiori, come dimostrato da
-Gauss-Seidel su \texttt{vem2} o dal Gradiente su \texttt{spa1}.
+L'attività ha permesso di approfondire non solo gli aspetti teorici dei metodi iterativi, ma anche di vedere in modo pratico come la scelta del solutore non sia mai indifferente: matrici con struttura e condizionamento diversi premiano metodi diversi, e affidarsi a un unico algoritmo senza analizzarne le proprietà può portare a prestazioni peggiori, come dimostrato da Gauss-Seidel su \texttt{vem2} o dal Gradiente su \texttt{spa1}.
 
 \appendix
 \section{Istruzioni per l'esecuzione}
