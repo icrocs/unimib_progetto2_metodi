@@ -456,11 +456,11 @@ Per questa ragione il benchmark è stato eseguito con tolleranze nell'intervallo
 Richiedere una tolleranza di, ad esempio, $10^{-16}$ o $10^{-17}$ sarebbe problematico per due motivi distinti:
 \begin{enumerate}
     \item Il criterio $\|Ax - b\|_2 / \|b\|_2 < 10^{-16}$ non potrebbe mai essere soddisfatto a causa degli arrotondamenti accumulati nei prodotti matrice-vettore, e il metodo itererebbe fino all'esaurimento del numero massimo di iterazioni senza convergere.
-    \item Anche se il residuo raggiungesse tale ordine di grandezza, l'errore effettivo sulla soluzione sarebbe amplificato dal numero di condizionamento: per una matrice con $\kappa(A)$, un residuo relativo di $10^{-16}$ non garantisce affatto un errore sulla soluzione di $10^{-16}$, ma potenzialmente di $\kappa(A) \cdot 10^{-16}$.
+    \item Anche se il residuo raggiungesse tale ordine di grandezza, l'errore effettivo sulla soluzione sarebbe amplificato dal numero di condizionamento: per una matrice con $Cond(A)$, un residuo relativo di $10^{-16}$ non garantisce affatto un errore sulla soluzione di $10^{-16}$, ma potenzialmente di $Cond(A) \cdot 10^{-16}$.
 \end{enumerate}
 La relazione tra residuo relativo ed errore relativo sulla soluzione è:
 \begin{equation}
-    \frac{\|x^* - x\|_2}{\|x^*\|_2} \leq \kappa(A) \cdot \frac{\|Ax - b\|_2}{\|b\|_2}.
+    \frac{\|x^* - x\|_2}{\|x^*\|_2} \leq Cond(A) \cdot \frac{\|Ax - b\|_2}{\|b\|_2}.
 \end{equation}
 Questo implica che, per matrici mal condizionate, il criterio di arresto basato sul residuo può essere raggiunto quando la soluzione approssimata è ancora lontana da quella esatta.
 
