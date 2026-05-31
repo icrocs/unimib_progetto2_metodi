@@ -488,9 +488,6 @@ La libreria è scritta in Python e sfrutta NumPy, SciPy (per il formato sparse C
 \paragraph{Formato sparse.}
 Le matrici, lette con \texttt{scipy.io.mmread}, sono convertite in formato CSR (\texttt{csr\_matrix}) per ottimizzare i prodotti matrice-vettore e l'accesso alle diagonali. Tutti i prodotti $Av$ nei solutori vengono eseguiti tramite \texttt{A.dot(v)}, sfruttando la memorizzazione sparse.
 
-\paragraph{Gauss-Seidel e densificazione parziale.}
-L'implementazione di Gauss-Seidel è l'unica a richiedere la conversione densa della matrice con \texttt{A = self.A.toarray()}, necessaria per l'accesso per riga nel ciclo componente per componente. 
-
 \paragraph{Variabile intermedia \texttt{y} nei metodi del gradiente.}
 Sia in \texttt{gradient} che in \texttt{gradient\_conjugate} il prodotto
 $A d^{(k)}$ (o $A r^{(k)}$) viene salvato in \texttt{y} prima di calcolare
