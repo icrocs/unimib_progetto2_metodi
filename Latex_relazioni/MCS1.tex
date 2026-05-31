@@ -232,10 +232,10 @@ condizione che renderebbe il metodo inapplicabile.
 
 \subsection{Gauss-Seidel}
 \label{subsec:gs}
-
-Il metodo di Gauss-Seidel adotta lo stesso schema generale~\eqref{eq:update},
-con una scelta diversa di $P$. La matrice $P$ è la parte
-\emph{triangolare inferiore} di $A$ (diagonale inclusa), denotata $L$:
+Il metodo di Gauss-Seidel adotta lo stesso schema generale di un metodo iterativo
+stazionario, con una scelta specifica per la matrice di precondizionamento $P$. In
+questo caso, $P$ è scelta come la parte \emph{triangolare inferiore} di $A$ (diagonale
+inclusa), che denotiamo con $L$:
 \begin{equation}
     P := L =
     \begin{pmatrix}
@@ -245,56 +245,58 @@ con una scelta diversa di $P$. La matrice $P$ è la parte
         a_{n,1} & a_{n,2} & \cdots & a_{n,n}
     \end{pmatrix},
 \end{equation}
-mentre $N$ è la parte triangolare superiore stretta di $A$ con segno opposto.
+mentre la matrice $N$, definita come $N = P - A$, rappresenta la parte triangolare
+superiore stretta di $A$ cambiata di segno.
 
 \paragraph{Formula di aggiornamento.}
-L'aggiornamento resta $x^{(k+1)} = x^{(k)} + L^{-1}r^{(k)}$, ma $L$ non
-viene mai invertita esplicitamente. Si risolve invece il sistema triangolare
+Ad ogni iterazione, l'algoritmo corregge l'approssimazione corrente ponendo
+$x^{(k+1)} = x^{(k)} + y$, dove il vettore di correzione $y$ è la soluzione del
+sistema triangolare inferiore:
 \begin{equation}
-    L\, y = r^{(k)}
+    L\, y = r^{(k)}.
     \label{eq:gs_fwd}
 \end{equation}
-con la \emph{sostituzione in avanti}, ottenendo $y = L^{-1}r^{(k)}$ a costo
-$O(n^2)$, e si pone $x^{(k+1)} = x^{(k)} + y$.
+Il vettore $r^{(k)} = b - Ax^{(k)}$ è il residuo globale calcolato all'inizio
+dell'iterazione $k$-esima. Il sistema~\eqref{eq:gs_fwd} viene risolto efficientemente
+tramite l'algoritmo di \emph{sostituzione in avanti}, con un costo computazionale
+$\mathcal{O}(n^2)$, evitando così l'inversione esplicita di $L$.
 
-\paragraph{Forma componente per componente (implementazione).}
-Il sistema~\eqref{eq:gs_fwd} componente per componente è:
+\paragraph{Forma componente per componente.}
+L'algoritmo di sostituzione in avanti determina le componenti del vettore di
+correzione $y$ riga per riga, sfruttando i valori $y_j$ già calcolati nella stessa
+iterazione per gli indici $j < i$. La formula risultante è:
 \begin{equation}
-    x_i^{(k+1)} = \frac{1}{a_{ii}}\!\left(
-        b_i
-        - \sum_{j=1}^{i-1} a_{ij}\, x_j^{(k+1)}
-        - \sum_{j=i+1}^{n} a_{ij}\, x_j^{(k)}
-    \right),
+    y_i = \frac{1}{a_{ii}} \left( r_i^{(k)} - \sum_{j=1}^{i-1} a_{ij}\, y_j \right),
     \qquad i = 1,\dots,n.
-    \label{eq:gs_comp}
+    \label{eq:gs_comp_corr}
 \end{equation}
-Nella formula~\eqref{eq:gs_comp} le componenti $x_j^{(k+1)}$ già calcolate
-al passo corrente vengono immediatamente riutilizzate per aggiornare le
-componenti successive: questa è la caratteristica distintiva di Gauss-Seidel
-rispetto a Jacobi, che usa soltanto valori dell'iterata precedente. Le due
-formulazioni~\eqref{eq:gs_fwd} e~\eqref{eq:gs_comp} sono \emph{algebricamente
-equivalenti}: la sostituzione in avanti applicata a $Ly = r^{(k)}$ produce
-esattamente le stesse componenti di~\eqref{eq:gs_comp}.
+Una volta determinate tutte le componenti di $y$, la nuova iterata viene aggiornata
+tramite $x^{(k+1)} = x^{(k)} + y$. Questa formulazione è algebricamente equivalente
+alla classica scrittura di Gauss-Seidel che aggiorna direttamente le componenti di
+$x$: la caratteristica distintiva risiede nel fatto che il contributo dei termini
+triangolari inferiori viene incorporato \emph{al volo} nella stessa iterazione, non
+appena le relative componenti di $y$ risultano disponibili.
 
 \begin{implbox}
-Nel metodo \texttt{gauss\_seidel} la matrice sparsa è convertita in formato
-denso una sola volta prima del ciclo:
+Nel metodo \texttt{gauss\_seidel} implementato in Python, la matrice sparsa viene
+convertita in formato denso una sola volta prima del ciclo principale:
 \begin{center}
-\texttt{A = self.A.toarray()}
+    \texttt{L = np.tril(self.A.toarray())}
 \end{center}
-Il ciclo interno percorre le righe $i = 0,\dots,n-1$ e calcola la somma
-$s$ delle contribuzioni già aggiornate (indici $j < i$, vettore
-\texttt{x\_new}) e di quelle ancora all'iterazione precedente (indici $j > i$,
-vettore \texttt{x}):
+All'inizio di ogni iterazione, si calcola il residuo globale
+\texttt{r = self.b - self.A.dot(x)}. Un ciclo interno percorre poi le righe
+$i = 0, \ldots, n-1$ per calcolare le componenti del vettore di correzione \texttt{y},
+inizializzato a zero:
 \begin{center}
-\texttt{s = A[i, :i].dot(x\_new[:i]) + A[i, i+1:].dot(x[i+1:])} \\[2pt]
-\texttt{x\_new[i] = (self.b[i] - s) / D\_diag[i]}
+    \texttt{s = r[i] - L[i, :i].dot(y[:i])} \\[2pt]
+    \texttt{y[i] = s / L[i, i]}
 \end{center}
-che corrisponde esattamente alla formula~\eqref{eq:gs_comp} con
-$1/a_{ii} \leftrightarrow$ \texttt{1/D\_diag[i]}. La scelta di lavorare su
-formato denso è stato fatto per evitare il risolutore sparso (preferibile ma che esula dal progetto) di 
-(\texttt{scipy.sparse.linalg.spsolve\_triangular}), anche se questo comporta un costo computazionale piu elevate ma per le dimensioni delle matrici del dataset fornito
-questa è accettabile.
+Al termine del ciclo interno, l'iterata viene aggiornata con \texttt{x += y}. La
+scelta di lavorare in formato denso e di implementare manualmente la sostituzione in
+avanti è motivata da ragioni didattiche, evitando il ricorso a routine esterne di
+\texttt{scipy.sparse.linalg}. Sebbene tale approccio comporti un maggiore utilizzo di
+memoria rispetto a una gestione puramente sparsa, esso risulta pienamente sostenibile
+per le dimensioni delle matrici presenti nel dataset di progetto.
 \end{implbox}
 
 \subsection{Forma quadratica e metodi del gradiente}
