@@ -69,10 +69,10 @@ QStatusBar {
 
 SPLASH_MESSAGES = [
     ("Inizializzazione del sistema...",      "#2753e0", 800),
-    ("Facendo i complimenti al professore per un captatio benevolentiae...",            "#1c67de", 1300),
+    ("Facendo i complimenti al professore per un captatio benevolentiae...",            "#1c67de", 1000),
     ("Calcolando il senso della vita, l'universo e tutto quanto...", "#38d729", 1300),
     ("Verificando se P = NP.... in caso di crash allora P ≠ NP.", "#89b4fa", 1300),
-    ("Dimostrando l'Ipotesi di Riemann...\n Ooops, i margini dello splash screen sono troppo stretti per scriverla.", "#f4df00", 1300),
+    ("Dimostrando l'Ipotesi di Riemann...\n Ooops, i margini dello splash screen sono troppo stretti per scriverla.", "#f4df00", 1000),
     ("Depositando un caco su un palco famoso...", "#1c97de", 1000),
     ("Avvio interfaccia grafica...",         "#ff497c", 600),
 ]

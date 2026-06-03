@@ -143,7 +143,7 @@ PyQt6. Tutta la pipeline è open source.
 
 \subsection{DCT monodimensionale (DCT-II ortonormale)}
 
-Dato un vettore $v \in \R^N$, la DCT-II nella forma ortonormale adottata nel
+Dato un vettore $v \in \R^N$, la DCT nella forma ortonormale adottata nel
 progetto è definita da:
 \begin{equation}
   Y_k = C_k \sum_{i=0}^{N-1} v_i \cos\!\left(\frac{\pi k\,(2i+1)}{2N}\right),
@@ -204,7 +204,7 @@ i seguenti passi:
 \begin{enumerate}
   \item Calcolare $c = \text{DCT2}(f)$.
   \item Porre a zero i coefficienti $c_{k\ell}$ con $k + \ell \geq d$
-        (si eliminano le frequenze al di sopra della diagonale antidiagonale
+        (si eliminano le frequenze che superano l'antidiagonale
         individuata dal parametro $d \in [0,\, 2F-2]$).
   \item Calcolare $\tilde{f} = \text{IDCT2}(c)$.
   \item Arrotondare $\tilde{f}$ all'intero più vicino e saturare in $[0, 255]$.
