@@ -11,8 +11,6 @@ import jpeg
 # Argument parser
 # ---------------------------------------------------------------------------
 
-#TODO: 
-#spostare la gestione degli argomenti in un file a parte tipo parser.py, e importare la funzione build_parser() da lì.
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="main.py",

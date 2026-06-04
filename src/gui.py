@@ -15,12 +15,12 @@ import jpeg
 from styles import DARK_STYLE, SPLASH_MESSAGES
 
 
-# ── Processing logic (unchanged) ─────────────────────────────────────────────
+# ── Processing logic ─────────────────────────────────────────────
 def process_bitmap(path: str, F: int, d: int):
     try:
         img = Image.open(path).convert("L")
     except Exception as exc:
-        raise RuntimeError(f"Failed to open Image: {exc}")  #messo raise runtime perche parser.error non c'era come import
+        raise RuntimeError(f"Failed to open Image: {exc}")  
     compressed = jpeg.compress_image(img, F, d)
     buf = BytesIO()
     compressed.save(buf, format="BMP")
