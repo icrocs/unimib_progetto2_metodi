@@ -1,7 +1,6 @@
-
 import argparse
 from pathlib import Path
-
+import matplotlib.pyplot as plt
 from PIL import Image
 
 import jpeg
@@ -64,7 +63,17 @@ def run_cli() -> int:
     if args.output:
         compressed.save(args.output)
         print(f"Saved   : {args.output}")
-
+    if args.show:
+        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+        axes[0].imshow(img, cmap='gray')
+        axes[0].set_title(f"Originale ({img.width}x{img.height})")
+        axes[0].axis('off')
+        axes[1].imshow(compressed, cmap='gray')
+        axes[1].set_title(f"Compressa (F={args.F}, d={args.d})")
+        axes[1].axis('off')
+        
+        plt.tight_layout()
+        plt.show()
 
     return 0
 
